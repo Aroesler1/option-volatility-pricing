@@ -1,81 +1,54 @@
-# Black-Scholes Options & Sentiment Notebook
+# PIC 16B Final Project — Sentiment, Volatility Forecasting, and Options Pricing
 
-**Main.ipynb** is an exploratory project that unifies option pricing, implied & historical volatility, and news/social sentiment into a single, inspectable workflow. It also includes a Streamlit UI sketch that turns the analysis into an interactive dashboard.
+This repo centers on **`Main.ipynb`**, an exploratory workflow that combines:
+- **Market data** (prices + option chains via `yfinance`)
+- **Sentiment signals** from **Google News RSS** and **Reddit** (via `feedparser`/`requests` and `praw`)
+- **Volatility forecasting** with **PyTorch LSTMs**
+- **Black–Scholes option pricing** and **implied volatility** inversion
 
-## Project overview
+It also contains a **Streamlit dashboard prototype** (included in the notebook) for interactive option-pricing exploration.
 
-- **Market data layer:** pulls spot and historical prices for equities and exposes option chains (calls/puts by expiry and strike).
-- **Pricing & volatility layer:** implements Black–Scholes pricing, computes **implied volatility** from market quotes, and **historical volatility** from returns.
-- **Sentiment layer:** fetches recent headlines and Reddit-style sources, scores them with VADER, and maps the aggregate sentiment to a volatility proxy.
-- **App layer (prototype):** a Streamlit interface with inputs (ticker, strike, expiry, risk-free rate) and outputs (spot, vols, option prices, nearest market quotes, IV).
+## What’s in this repo
 
-## Major components
+- **`Main.ipynb`**: the main notebook (data collection, feature engineering, modeling, plots, and prototype app code)
+- **`data/weekly_stock_data.csv`**: weekly dataset for multiple tickers (sentiment, prices, forward returns, vol, article volume)
+- **`data/TSM_data.csv`**: daily dataset (volatility, average sentiment, volume) used in the notebook
+- **`data/sentiment_prev_full_month.json`**: Reddit crawl output (posts + comments) with TextBlob-based sentiment fields
+- **`weekly_stock_data.csv`**: a second copy/export of the weekly dataset
 
-### 1) Data ingestion
-- **Equity prices:** minute/day bars for the underlying, used for spot and realized-vol calculations.
-- **Options data:** option chain by **expiry**; used to find the nearest strike to the user’s selection and to compare model prices to quotes.
-- **News & social signals:** recent headlines (Google/NewsAPI) and Reddit-derived items for sentiment estimation.
+## Project overview (as implemented)
 
-### 2) Pricing & analytics
-- **Black–Scholes model:** closed-form Call/Put prices for given \(S, K, T, r, \sigma\).
-- **Implied volatility (IV):** numerical root-finding (brentq) to invert Black–Scholes so the model price matches a quoted option price.
-- **Historical volatility:** daily log-return standard deviation, annualized with \(\sqrt{252}\).
-- **Sentiment-based volatility:** a simple, bounded mapping from average headline sentiment (VADER compound) to a volatility proxy, used as an illustrative signal alongside historical vol.
+### 1) Sentiment data
+- **Google News RSS sentiment**: pulls RSS entries across multiple regions and query variants, then computes **TextBlob polarity** on cleaned article text.
+- **Reddit sentiment**: searches Reddit via `praw`, pulls post text + comments, then computes **TextBlob polarity/subjectivity** and aggregates a combined sentiment score.
 
-### 3) Streamlit UI (prototype)
-- **Sidebar inputs:** ticker, strike, risk-free rate, expiry date.
-- **Live metrics:** spot price; **historical volatility** (%); **sentiment-based volatility** (%).
-- **Pricing outputs:** model Call/Put prices from Black–Scholes; nearest available option quotes; computed **implied volatility** for the closest quoted contract (when available).
-- **UX details:** expiry selection via valid exchange dates; nearest-strike matching to the entered strike; defensive messaging when data isn’t available.
+### 2) Market + volatility data
+- **Prices / returns**: downloads historical closes via `yfinance` and constructs weekly forward returns.
+- **Volatility features**: computes rolling realized volatility and stores weekly volatility features in the saved CSVs.
 
-## Methods and assumptions
+### 3) Modeling (PyTorch)
+- Trains **LSTM models** to predict volatility (and related targets) using sentiment and market features.
+- Includes a simple **grid search** helper for LSTM hyperparameters in the notebook.
 
-- **No dividends:** current formulation prices non-dividend underlyings (or assumes negligible dividends).
-- **Volatility inputs:** 
-  - *Historical vol* from realized returns (simple estimator).
-  - *Sentiment vol* from VADER scores; clipped to a sensible range to avoid extremes.
-- **Implied vol bracketing:** search bounds wide enough for typical equities; failures handled with warnings/NA.
-- **Nearest-strike mapping:** market quotes are compared at the closest available strike to the desired strike.
+### 4) Options pricing
+- **Black–Scholes** call/put pricing for given \(S, K, T, r, \sigma\).
+- **Implied volatility** via numerical root-finding (`brentq`) to invert Black–Scholes against a market option price.
+- Fetches option chains via `yfinance` and compares model outputs to nearby quoted strikes.
 
-## Key functions (high level)
+### 5) Streamlit app (prototype)
+There is a **Streamlit UI prototype** embedded in `Main.ipynb` that exposes a Black–Scholes calculator with live metrics and option chain lookup.
 
-- `fetch_stock_data(ticker)` — retrieves the latest close/spot for the underlying.
-- `get_valid_expiry_dates(ticker)` — returns listed option expiries for the symbol.
-- `fetch_option_prices(ticker, expiry_date)` — fetches the calls/puts chain for a given expiry.
-- `implied_volatility(option_price, S, K, T, r, option_type)` — numerically inverts Black–Scholes to compute IV.
-- `fetch_sentiment_data(ticker)` — gathers recent headlines for the ticker.
-- `analyze_sentiment(texts)` — computes VADER compound scores for a set of headlines.
-- `calculate_volatility_from_sentiment(ticker)` — converts average sentiment to a bounded volatility proxy.
-- `calculate_historical_volatility(ticker, months)` — computes annualized realized volatility from historical returns.
-- `main()` — Streamlit entry point wiring inputs, data retrieval, analytics, and UI outputs.
+Important note: the notebook’s *core sentiment pipelines* use **TextBlob** (Google News RSS + Reddit). The Streamlit prototype includes **placeholder sentiment code** intended to be swapped/extended.
 
-## What’s visible in the notebook
+## Known limitations
 
-- **Walkthrough cells** computing:
-  - spot and realized volatility
-  - Black–Scholes prices for chosen inputs
-  - option chain fetch + nearest strike comparison
-  - implied volatility from quotes
-  - sentiment fetch → scoring → volatility proxy
-- **UI sketch** surfacing the analytics as a real-time dashboard (metrics, selectors, computed outputs).
+- **Sentiment quality**: TextBlob is general-purpose and can miss finance-specific nuance.
+- **Coverage bias**: news/social sources can be sparse or concentrated in certain time windows, which affects aggregates.
+- **Data availability**: option chains and some price histories can have gaps.
+- **Model scope**: Black–Scholes assumes constant volatility and lognormal dynamics; dividends/borrowing costs are not modeled here.
 
-## Known limitations & guardrails
+## Roadmap ideas
 
-- **Coverage bias:** headline/social data is heavier toward the most recent dates, which can skew sentiment aggregates.
-- **Domain sentiment:** VADER is general-purpose; finance nuance (earnings language, guidance, macro) is imperfectly captured.
-- **Data availability:** option chains and intraday bars can have gaps; placeholders are shown when endpoints return no data.
-- **Model scope:** Black–Scholes assumes constant volatility and lognormal dynamics; dividends/borrowing costs are not modeled.
-
-## Roadmap / planned enhancements
-
-I plan to return to this project to **enhance data collection**, as there is clearly **more data toward the end** of the date ranges for both **Google RSS feeds** and **Reddit** data, and to **expand to other data sources**. I also plan to **add better sentiment analysis tools** and **enhance model accuracy**.
-
-More concretely:
-- **Data collection**
-  - Normalize sampling across the full timeline; backfill earlier periods; add caching/retry and de-duplication.
-- **Additional sources**
-  - Company filings and transcripts, alternative newsfeeds, more granular social data, macro calendars.
-- **Sentiment upgrades**
-  - Finance-tuned transformers (e.g., FinBERT), entity/sector tagging, horizon-aware aggregation, sarcasm/negation handling.
-- **Model accuracy**
-  - Calibrate sentiment-to-volatility mapping against realized vol; add hyperparameter tuning for predictive baselines; explore regime detection and richer feature engineering.
+- Improve/expand data sources and backfilling
+- Finance-tuned sentiment models (e.g., FinBERT) and better aggregation
+- Stronger baselines and calibration for sentiment→volatility links
