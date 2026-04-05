@@ -1,54 +1,56 @@
-# PIC 16B Final Project — Sentiment, Volatility Forecasting, and Options Pricing
+# Sentiment, Volatility Forecasting, and Options Pricing
 
-This repo centers on **`Main.ipynb`**, an exploratory workflow that combines:
-- **Market data** (prices + option chains via `yfinance`)
-- **Sentiment signals** from **Google News RSS** and **Reddit** (via `feedparser`/`requests` and `praw`)
-- **Volatility forecasting** with **PyTorch LSTMs**
-- **Black–Scholes option pricing** and **implied volatility** inversion
+This repository explores how text sentiment, realized volatility features, and option-market data can be combined in a single research workflow. The main notebook collects Google News and Reddit text, engineers weekly and daily features, trains PyTorch LSTM models for volatility forecasting, and compares Black-Scholes prices with observed option-chain quotes.
 
-It also contains a **Streamlit dashboard prototype** (included in the notebook) for interactive option-pricing exploration.
+## Repository layout
 
-## What’s in this repo
+- `Main.ipynb`: end-to-end notebook for data collection, feature engineering, modeling, and option-pricing experiments
+- `data/weekly_stock_data.csv`: weekly multi-ticker research dataset with prices, sentiment, and forward-looking targets
+- `data/TSM_data.csv`: daily volatility-oriented dataset used in the notebook experiments
+- `data/sentiment_prev_full_month.json`: saved Reddit sentiment crawl used as a reproducible input artifact
+- `report.pdf`: written project report summarizing the analysis and results
 
-- **`Main.ipynb`**: the main notebook (data collection, feature engineering, modeling, plots, and prototype app code)
-- **`data/weekly_stock_data.csv`**: weekly dataset for multiple tickers (sentiment, prices, forward returns, vol, article volume)
-- **`data/TSM_data.csv`**: daily dataset (volatility, average sentiment, volume) used in the notebook
-- **`data/sentiment_prev_full_month.json`**: Reddit crawl output (posts + comments) with TextBlob-based sentiment fields
-- **`weekly_stock_data.csv`**: a second copy/export of the weekly dataset
+## Quickstart
 
-## Project overview (as implemented)
+Create an environment and install the libraries used in the notebook:
 
-### 1) Sentiment data
-- **Google News RSS sentiment**: pulls RSS entries across multiple regions and query variants, then computes **TextBlob polarity** on cleaned article text.
-- **Reddit sentiment**: searches Reddit via `praw`, pulls post text + comments, then computes **TextBlob polarity/subjectivity** and aggregates a combined sentiment score.
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install jupyter pandas numpy matplotlib scipy yfinance feedparser praw textblob torch pandas_market_calendars streamlit
+```
 
-### 2) Market + volatility data
-- **Prices / returns**: downloads historical closes via `yfinance` and constructs weekly forward returns.
-- **Volatility features**: computes rolling realized volatility and stores weekly volatility features in the saved CSVs.
+Launch the notebook:
 
-### 3) Modeling (PyTorch)
-- Trains **LSTM models** to predict volatility (and related targets) using sentiment and market features.
-- Includes a simple **grid search** helper for LSTM hyperparameters in the notebook.
+```bash
+jupyter notebook Main.ipynb
+```
 
-### 4) Options pricing
-- **Black–Scholes** call/put pricing for given \(S, K, T, r, \sigma\).
-- **Implied volatility** via numerical root-finding (`brentq`) to invert Black–Scholes against a market option price.
-- Fetches option chains via `yfinance` and compares model outputs to nearby quoted strikes.
+If you want to use the Reddit ingestion cells, export credentials before opening the notebook:
 
-### 5) Streamlit app (prototype)
-There is a **Streamlit UI prototype** embedded in `Main.ipynb` that exposes a Black–Scholes calculator with live metrics and option chain lookup.
+```bash
+export REDDIT_CLIENT_ID=your_client_id
+export REDDIT_CLIENT_SECRET=your_client_secret
+export REDDIT_USER_AGENT=option-volatility-pricing/0.1
+```
 
-Important note: the notebook’s *core sentiment pipelines* use **TextBlob** (Google News RSS + Reddit). The Streamlit prototype includes **placeholder sentiment code** intended to be swapped/extended.
+## Methodology
 
-## Known limitations
+The workflow combines three strands of analysis. First, it builds sentiment signals from Google News RSS and Reddit text using TextBlob polarity and subjectivity scores. Second, it downloads market and option-chain data with `yfinance`, computes rolling volatility features, and organizes the resulting data into weekly and daily research tables. Third, it trains LSTM models in PyTorch to forecast volatility-related targets and uses Black-Scholes plus `brentq` inversion to compare model-based prices and implied volatility with observed option quotes.
 
-- **Sentiment quality**: TextBlob is general-purpose and can miss finance-specific nuance.
-- **Coverage bias**: news/social sources can be sparse or concentrated in certain time windows, which affects aggregates.
-- **Data availability**: option chains and some price histories can have gaps.
-- **Model scope**: Black–Scholes assumes constant volatility and lognormal dynamics; dividends/borrowing costs are not modeled here.
+## Output
 
-## Roadmap ideas
+Running the notebook produces:
 
-- Improve/expand data sources and backfilling
-- Finance-tuned sentiment models (e.g., FinBERT) and better aggregation
-- Stronger baselines and calibration for sentiment→volatility links
+- cleaned sentiment datasets saved in `data/`
+- volatility features and weekly modeling tables
+- training curves and diagnostic plots for the LSTM experiments
+- Black-Scholes prices and implied-volatility comparisons for selected option chains
+
+## Known limits
+
+- Sentiment is driven by TextBlob rather than a finance-specific language model
+- The workflow is notebook-centric and depends on interactive execution order
+- Market and option-chain data from public sources can be sparse or inconsistent
+- Black-Scholes is used as a baseline pricing model and does not capture the full surface dynamics of listed options
