@@ -57,7 +57,19 @@ The original notebook pipeline has two defects that `vol_forecasting.py` fixes (
 1. **Target definition.** The LSTM predicted the *current* 30-day rolling volatility, whose estimation window overlaps ~29/30 days with the input features; such a model mostly restates persistence. The corrected target is realized volatility over the *next* h days, computed from strictly future returns.
 2. **Scaler leakage.** `MinMaxScaler` was fit on the full sample before the chronological split; the corrected utility scales with train-window statistics only.
 
-The module also adds what any volatility-forecasting claim must be measured against: the HAR-RV baseline (Corsi 2009), the QLIKE loss (the standard robust loss for variance forecasts), and a Diebold-Mariano comparison test. Recent literature finds LSTM gains over HAR-RV on index volatility are modest and often statistically insignificant, so a fair benchmark matters. Notebook outputs are retained as the historical record of the original experiments.
+The module also adds what any volatility-forecasting claim must be measured against: the HAR-RV baseline (Corsi 2009), the QLIKE loss (the standard robust loss for variance forecasts), and a Diebold-Mariano comparison test. Notebook outputs are retained as the historical record of the original experiments.
+
+### Benchmark result (SPY, 21-day forward vol, OOS 2017-12 to 2026-07)
+
+`run_vol_benchmark.py` runs the corrected pipeline end to end on ~21 years of SPY daily data (2,153 OOS observations, expanding-window refits every 21 days, checked-in results in `results/`):
+
+| model | QLIKE | MSE | DM vs persistence |
+|---|---|---|---|
+| persistence (RV random walk) | 0.793 | 0.0120 | - |
+| HAR-RV | **0.543** | 0.0090 | -3.83 (p = 0.0001) |
+| ridge (HAR features + return extras) | 0.543 | 0.0084 | -3.77 (p = 0.0002) |
+
+HAR-RV beats persistence decisively, and the regularized ML model is statistically indistinguishable from HAR-RV (DM -0.01, p = 0.99), replicating the standard finding that ML gains over HAR-RV on index volatility are marginal. Any LSTM re-run of the original notebook experiments should be held to this bar.
 
 ## Known limits
 
