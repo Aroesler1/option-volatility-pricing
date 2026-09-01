@@ -4,8 +4,9 @@ A horse race between the standard econometric volatility forecasters and the
 path-dependent volatility model of Guyon & Lekeufack, evaluated out-of-sample on
 21 years of SPY under QLIKE with Diebold-Mariano tests.
 
-**The headline result is that nothing significantly beats HAR-RV.** That is the
-finding, and it is reported rather than buried.
+**One specification significantly beats HAR-RV: HAR combined with option-implied
+volatility** (p = 0.0188). Nothing built from returns alone does, and that null
+is reported just as plainly.
 
 ## Out-of-sample results
 
@@ -53,6 +54,48 @@ Diebold-Mariano, Newey-West lag 20 (negative favours the first model):
   2026 finding that across nine zero-shot time-series foundation models and 50
   assets, econometric benchmarks remain competitive and only one small model
   beat Log-HAR at every horizon ([arXiv 2607.05291](https://arxiv.org/abs/2607.05291)).
+
+## Does the option market beat the time series? Only once you strip the premium.
+
+The models above forecast realized volatility from its own history. The option
+market publishes a forward-looking estimate of the same quantity every day.
+`run_iv_benchmark.py` tests whether it helps, using 30-day at-the-money implied
+volatility from the OptionMetrics standardised surface (|delta| = 50), lagged one
+day so no same-session information leaks in.
+
+First, the bias is measured rather than assumed:
+
+    mean(IV - subsequent realized vol) = +0.0422
+
+Implied volatility sits **4.2 volatility points above** what actually gets
+realized. That is the variance risk premium, and it means raw IV cannot be used
+as a point forecast without a systematic error.
+
+| model | QLIKE mean | QLIKE median | DM vs HAR-RV | p |
+|---|---|---|---|---|
+| persistence | 0.3835 | 0.1022 | +3.22 | 0.0013 |
+| HAR-RV | 0.1274 | 0.0827 | — | — |
+| raw ATM implied vol | 0.2434 | 0.2128 | +4.49 | 0.0000 |
+| **HAR + implied vol** | **0.1182** | **0.0754** | **−2.35** | **0.0188** |
+
+Two findings, and the second is the headline.
+
+**Raw implied volatility is a worse forecast than HAR-RV** (p < 0.0001). Used
+directly it is beaten decisively by a model that sees only past returns, because
+the risk premium biases every forecast upward.
+
+**But combined with HAR it beats HAR significantly** (p = 0.0188). Once a
+regression is allowed to scale the premium away, implied volatility carries
+genuine incremental information that the return history does not. This is the
+only specification in this repository that significantly improves on HAR-RV, and
+it is consistent with the literature: option-implied volatility is informative
+but biased, and the two facts have to be handled separately.
+
+Reproduce:
+
+```bash
+python run_iv_benchmark.py
+```
 
 ## Does the realized-variance estimator change the answer? Yes.
 
