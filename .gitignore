@@ -18,3 +18,5 @@ __pycache__/
 *.py[cod]
 
 data/databento/
+
+data/SPY_ivsurface.parquet
