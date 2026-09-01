@@ -1,6 +1,85 @@
-# Sentiment, Volatility Forecasting, and Options Pricing
+# Volatility Forecasting: HAR, HARQ, and Path-Dependent Models
 
-This repository explores how text sentiment, realized volatility features, and option-market data can be combined in a single research workflow. The main notebook collects Google News and Reddit text, engineers weekly and daily features, trains PyTorch LSTM models for volatility forecasting, and compares Black-Scholes prices with observed option-chain quotes.
+A horse race between the standard econometric volatility forecasters and the
+path-dependent volatility model of Guyon & Lekeufack, evaluated out-of-sample on
+21 years of SPY under QLIKE with Diebold-Mariano tests.
+
+**The headline result is that nothing significantly beats HAR-RV.** That is the
+finding, and it is reported rather than buried.
+
+## Out-of-sample results
+
+SPY, 2005-2026. Target is realized volatility over the *next* 21 trading days,
+built from strictly future returns. Test period 2018-01 to 2026-07 (2,155
+observations), expanding-window refits every 21 days. QLIKE is the standard
+robust loss for variance forecasts; lower is better.
+
+| model | QLIKE | MSE |
+|---|---|---|
+| persistence (RV random walk) | 0.7922 | 0.0120 |
+| **HAR-RV** (Corsi 2009) | 0.5425 | 0.0090 |
+| HARQ (Bollerslev-Patton-Quaedvlieg) | 0.5438 | 0.0091 |
+| PDV (Guyon-Lekeufack) | 0.8022 | 0.0115 |
+| **HAR + PDV** (nested) | **0.5381** | 0.0090 |
+| ridge on HAR features + extras | 0.5426 | 0.0084 |
+
+Diebold-Mariano, Newey-West lag 20 (negative favours the first model):
+
+| comparison | DM stat | p |
+|---|---|---|
+| HAR-RV vs persistence | **-3.43** | **0.0006** |
+| HARQ vs HAR-RV | +0.28 | 0.78 |
+| PDV vs HAR-RV | +1.42 | 0.16 |
+| HAR+PDV vs HAR-RV | -0.77 | 0.44 |
+| ridge vs HAR-RV | +0.00 | 1.00 |
+
+### Reading these honestly
+
+- **HAR-RV decisively beats persistence** (p = 0.0006). That is the one
+  unambiguous result.
+- **PDV alone underperforms HAR** at this horizon, scoring about the same as
+  persistence. This is *not* a refutation of Guyon-Lekeufack: their claim is
+  that path-dependence explains the *contemporaneous level* of volatility and
+  the implied-vol surface, not that it forecasts 21-day-ahead realized vol
+  better than HAR. This result scopes the claim rather than contradicting it.
+- **Nesting PDV inside HAR gives the best QLIKE**, but the improvement over
+  plain HAR is 0.8% and does not clear significance (p = 0.44). The honest
+  reading is that path-dependence adds little that HAR's horizon averages do
+  not already carry at this horizon.
+- **HARQ does not improve on HAR here.** The realized-quarticity proxy is built
+  from daily returns; HARQ is designed around intraday RQ, and the coarser proxy
+  plausibly removes the measurement-error signal it exploits.
+- **Ridge is statistically indistinguishable from HAR** (p = 1.00), matching the
+  2026 finding that across nine zero-shot time-series foundation models and 50
+  assets, econometric benchmarks remain competitive and only one small model
+  beat Log-HAR at every horizon ([arXiv 2607.05291](https://arxiv.org/abs/2607.05291)).
+
+Two methodology points that materially affect these numbers:
+
+1. **Kernel selection is on QLIKE, not MSE.** MSE on a right-skewed volatility
+   target rewards over-smoothed forecasts that cannot rise during stress. The
+   MSE-selected PDV kernel scored a QLIKE of 1.7e6, because its forecasts
+   collapse toward zero and QLIKE punishes under-forecasting without bound. The
+   QLIKE-selected kernel scores 0.61 in sample.
+2. **The DM tests use a Newey-West lag of h-1 = 20.** These are overlapping
+   21-day forecasts, so loss differentials are serially correlated out to ~20
+   lags; the generic n^(1/3) default (~13) understates the long-run variance and
+   overstates significance.
+
+Reproduce:
+
+```bash
+python run_vol_benchmark.py --ticker SPY --start 2005-01-01
+```
+
+## Scope note on the notebook
+
+`Main.ipynb` is earlier coursework retained as a historical record. It collects
+Google News and Reddit text and scores it with TextBlob, trains LSTM models, and
+compares Black-Scholes prices with observed option quotes. Its volatility
+methodology has two defects, both documented and fixed in `vol_forecasting.py`
+(see below); the sentiment component is not part of the results above and no
+claim in this README depends on it.
 
 ## Repository layout
 

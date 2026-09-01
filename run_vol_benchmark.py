@@ -26,7 +26,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from vol_forecasting import HARRV, diebold_mariano, forward_realized_vol, realized_vol
+from vol_forecasting import (
+    HARPDV,
+    HARQ,
+    HARRV,
+    PDVModel,
+    diebold_mariano,
+    forward_realized_vol,
+    realized_vol,
+)
 
 TRADING_DAYS = 252
 
@@ -47,9 +55,16 @@ def build_frame(ticker: str, start: str, horizon: int) -> pd.DataFrame:
         px = px.iloc[:, 0]
     ret = np.log(px / px.shift(1))
     rv = realized_vol(ret, 21)
+    # Realized quarticity proxy for HARQ. With daily returns as the base
+    # observation this is (n/3) * sum(r^4) over the window; it is a coarser
+    # estimate than an intraday RQ but preserves the time variation in
+    # measurement error that HARQ exploits.
+    rq = (21.0 / 3.0) * ret.pow(4).rolling(21).sum() * (TRADING_DAYS ** 2)
     frame = pd.DataFrame(
         {
+            "ret": ret,
             "rv": rv,
+            "rq": rq,
             "rv_w": rv.rolling(5).mean(),
             "rv_m": rv.rolling(22).mean(),
             "abs_ret_5": ret.abs().rolling(5).mean() * np.sqrt(TRADING_DAYS),
@@ -58,6 +73,58 @@ def build_frame(ticker: str, start: str, horizon: int) -> pd.DataFrame:
         }
     ).dropna()
     return frame
+
+
+def pdv_forecasts(frame: pd.DataFrame, test_start: int, refit: int) -> pd.Series:
+    """Guyon-Lekeufack path-dependent volatility, refit on an expanding window.
+
+    Kernel decay is grid-searched on the training window only; the loadings are
+    then refit by OLS. Prediction needs the trailing return path, so the model
+    is evaluated on history through the block end and sliced to the block.
+    """
+    preds = pd.Series(np.nan, index=frame.index)
+    for block_start in range(test_start, len(frame), refit):
+        train = frame.iloc[:block_start]
+        block = frame.iloc[block_start:block_start + refit]
+        if len(train) < 400 or block.empty:
+            continue
+        model = PDVModel(max_lag=252).fit_kernels(train["ret"], train["target"])
+        history = frame["ret"].iloc[: block_start + len(block)]
+        preds.loc[block.index] = model.predict(history).loc[block.index]
+    return preds
+
+
+def har_pdv_forecasts(frame: pd.DataFrame, test_start: int, refit: int) -> pd.Series:
+    """HAR augmented with the path-dependent state variables, expanding window.
+
+    Isolates whether path-dependence adds anything HAR does not already capture.
+    """
+    preds = pd.Series(np.nan, index=frame.index)
+    for block_start in range(test_start, len(frame), refit):
+        train = frame.iloc[:block_start]
+        block = frame.iloc[block_start:block_start + refit]
+        if len(train) < 400 or block.empty:
+            continue
+        model = HARPDV(max_lag=252).fit(train["rv"], train["ret"], train["target"])
+        hist_rv = frame["rv"].iloc[: block_start + len(block)]
+        hist_ret = frame["ret"].iloc[: block_start + len(block)]
+        preds.loc[block.index] = model.predict(hist_rv, hist_ret).loc[block.index]
+    return preds
+
+
+def harq_forecasts(frame: pd.DataFrame, test_start: int, refit: int) -> pd.Series:
+    """HARQ (Bollerslev-Patton-Quaedvlieg), refit on an expanding window."""
+    preds = pd.Series(np.nan, index=frame.index)
+    for block_start in range(test_start, len(frame), refit):
+        train = frame.iloc[:block_start]
+        block = frame.iloc[block_start:block_start + refit]
+        if len(train) < 200 or block.empty:
+            continue
+        model = HARQ().fit_q(train["rv"], train["rq"], train["target"])
+        history_rv = frame["rv"].iloc[: block_start + len(block)]
+        history_rq = frame["rq"].iloc[: block_start + len(block)]
+        preds.loc[block.index] = model.predict_q(history_rv, history_rq).loc[block.index]
+    return preds
 
 
 def ridge_forecasts(frame: pd.DataFrame, test_start: int, refit: int) -> pd.Series:
@@ -128,6 +195,9 @@ def main() -> int:
     forecasts = {
         "persistence": frame["rv"],
         "har_rv": har_forecasts(frame, test_start, args.refit),
+        "harq": harq_forecasts(frame, test_start, args.refit),
+        "pdv": pdv_forecasts(frame, test_start, args.refit),
+        "har_pdv": har_pdv_forecasts(frame, test_start, args.refit),
         "ridge": ridge_forecasts(frame, test_start, args.refit),
     }
 
@@ -139,10 +209,22 @@ def main() -> int:
         rows.append({"model": name, "qlike": float(loss.mean()), "mse": mse, "n_obs": int(loss.notna().sum())})
     table = pd.DataFrame(rows)
 
+    # Forecasts are h-step and OVERLAPPING, so loss differentials are serially
+    # correlated out to roughly h-1 lags. The generic n^(1/3) Newey-West default
+    # (~13 here) understates the long-run variance and overstates significance;
+    # h-1 is the standard choice for h-step forecast comparison.
+    dm_lag = max(args.horizon - 1, 1)
     dm_rows = []
-    for a, b in (("har_rv", "persistence"), ("ridge", "har_rv"), ("ridge", "persistence")):
-        stat, p = diebold_mariano(losses[a], losses[b])
-        dm_rows.append({"comparison": f"{a} vs {b} (QLIKE)", "dm_stat": stat, "p_value": p})
+    for a, b in (
+        ("har_rv", "persistence"),
+        ("harq", "har_rv"),
+        ("pdv", "har_rv"),
+        ("har_pdv", "har_rv"),
+        ("ridge", "har_rv"),
+    ):
+        stat, p = diebold_mariano(losses[a], losses[b], lag=dm_lag)
+        dm_rows.append({"comparison": f"{a} vs {b} (QLIKE)", "dm_stat": stat,
+                        "p_value": p, "nw_lag": dm_lag})
     dm_table = pd.DataFrame(dm_rows)
 
     print("\nOut-of-sample losses (lower is better):")
