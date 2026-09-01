@@ -12,3 +12,7 @@ __pycache__/
 cmc_output/
 *.log
 *.tmp
+
+.venv/
+__pycache__/
+*.py[cod]
