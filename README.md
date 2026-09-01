@@ -1,12 +1,31 @@
-# Volatility Forecasting: HAR, HARQ, and Path-Dependent Models
+# Volatility Forecasting: HAR, HARQ, PDV, and Implied Volatility
 
-A horse race between the standard econometric volatility forecasters and the
-path-dependent volatility model of Guyon & Lekeufack, evaluated out-of-sample on
-21 years of SPY under QLIKE with Diebold-Mariano tests.
+A controlled horse race across the volatility-forecasting literature, evaluated
+out-of-sample under QLIKE with Diebold-Mariano tests on 21 years of SPY.
 
-**One specification significantly beats HAR-RV: HAR combined with option-implied
-volatility** (p = 0.0188). Nothing built from returns alone does, and that null
-is reported just as plainly.
+## What it does
+
+- **Six forecasters compared like-for-like**: persistence, HAR-RV (Corsi 2009),
+  HARQ (Bollerslev-Patton-Quaedvlieg), path-dependent volatility
+  (Guyon-Lekeufack), a nested HAR+PDV, and option-implied volatility
+- **Three data regimes**, so the effect of the input is separable from the
+  effect of the model: a daily-return proxy, true 5-minute realized variance
+  from Databento intraday bars, and the OptionMetrics implied-volatility surface
+- **Expanding-window refits** with a forward target built from strictly future
+  returns, train-only scaling, and QLIKE as the loss
+- **Diebold-Mariano with a Newey-West lag of h−1**, because these are
+  overlapping h-step forecasts
+
+## The three results
+
+1. **Option-implied volatility significantly beats HAR-RV** (p = 0.0188) — but
+   only once the variance risk premium is scaled out. Raw implied vol is
+   decisively *worse* than a model that sees only past returns.
+2. **The realized-variance estimator matters as much as the model.** Switching
+   from a daily-return proxy to true intraday RV improves HAR-RV's median QLIKE
+   from 0.1378 to 0.1064, and eliminates catastrophic forecast collapses.
+3. **Nothing built from returns alone beats HAR-RV.** Not HARQ, not PDV, not
+   ridge. That null is reported as plainly as the positive result.
 
 ## Out-of-sample results
 
