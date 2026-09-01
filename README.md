@@ -54,6 +54,59 @@ Diebold-Mariano, Newey-West lag 20 (negative favours the first model):
   assets, econometric benchmarks remain competitive and only one small model
   beat Log-HAR at every horizon ([arXiv 2607.05291](https://arxiv.org/abs/2607.05291)).
 
+## Does the realized-variance estimator change the answer? Yes.
+
+The results above estimate realized volatility as a rolling standard deviation
+of **daily** returns. Corsi's HAR-RV is defined on **intraday** realized
+variance — the sum of squared intraday returns within a day. These are different
+estimators, and the daily proxy uses one observation per day where the intraday
+estimator uses 78.
+
+`run_intraday_benchmark.py` holds everything else fixed — same 2,052-day sample
+(2018-05 to 2026-07), same models, same target, same out-of-sample protocol —
+and varies only the estimator. Intraday data is SPY 1-minute bars from Databento
+`XNAS.ITCH`, aggregated to 5-minute returns. Both arms predict the *same*
+intraday-based target, so only the regressors' estimator differs.
+
+| estimator | model | QLIKE mean | QLIKE median | collapsed forecasts |
+|---|---|---|---|---|
+| intraday 5-min RV | persistence | 0.6422 | 0.1438 | 0 |
+| intraday 5-min RV | **HAR-RV** | 0.2307 | 0.1064 | 0 |
+| intraday 5-min RV | **HARQ** | 0.2315 | **0.1000** | 0 |
+| intraday 5-min RV | HAR+PDV | 0.2378 | 0.1300 | 0 |
+| daily-return proxy | HAR-RV | **2300.3** | 0.1378 | **2** |
+| daily-return proxy | HARQ | 35.6 | 0.1251 | 0 |
+| daily-return proxy | HAR+PDV | **23,000,658** | 0.1620 | **2** |
+
+Three things follow.
+
+**Intraday RV wins on both mean and median, for every model.** HAR-RV's median
+QLIKE improves from 0.1378 to 0.1064 purely by changing the estimator.
+
+**The daily proxy occasionally produces catastrophic forecasts.** Exactly 2 of
+821 HAR forecasts collapse to the clipping floor, and because QLIKE punishes
+under-forecasting without bound, those two days each contribute roughly 944,000
+and destroy the mean. The intraday estimator produces zero such collapses. Mean
+and median are both reported precisely so this tail behaviour is visible rather
+than hidden behind whichever summary flatters the story — a volatility model
+that occasionally forecasts approximately zero is dangerous in a way an average
+does not convey.
+
+**HARQ only works with the data it was designed for.** On the daily proxy, HARQ
+was statistically indistinguishable from HAR (p = 0.78 in the table above). With
+genuine intraday realized quarticity it posts the best median QLIKE of any model
+tested, 0.1000 against HAR's 0.1064. That is exactly what the theory predicts:
+HARQ corrects for time-varying measurement error in realized variance, and a
+daily-return proxy for quarticity is too coarse to carry that signal. The
+improvement does not clear significance on the mean-based DM test (+0.61,
+p = 0.54), so it is reported as suggestive rather than established.
+
+Reproduce:
+
+```bash
+python run_intraday_benchmark.py
+```
+
 Two methodology points that materially affect these numbers:
 
 1. **Kernel selection is on QLIKE, not MSE.** MSE on a right-skewed volatility

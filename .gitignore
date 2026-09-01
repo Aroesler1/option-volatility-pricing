@@ -16,3 +16,5 @@ cmc_output/
 .venv/
 __pycache__/
 *.py[cod]
+
+data/databento/
