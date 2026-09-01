@@ -5,6 +5,8 @@ This repository explores how text sentiment, realized volatility features, and o
 ## Repository layout
 
 - `Main.ipynb`: end-to-end notebook for data collection, feature engineering, modeling, and option-pricing experiments
+- `vol_forecasting.py`: corrected, tested forecasting methodology (forward realized-vol target, train-only scaling, HAR-RV baseline, QLIKE, Diebold-Mariano)
+- `tests/`: unit tests for the corrected methodology (no network or credentials needed)
 - `data/weekly_stock_data.csv`: weekly multi-ticker research dataset with prices, sentiment, and forward-looking targets
 - `data/TSM_data.csv`: daily volatility-oriented dataset used in the notebook experiments
 - `data/sentiment_prev_full_month.json`: saved Reddit sentiment crawl used as a reproducible input artifact
@@ -48,9 +50,30 @@ Running the notebook produces:
 - training curves and diagnostic plots for the LSTM experiments
 - Black-Scholes prices and implied-volatility comparisons for selected option chains
 
+## Methodology corrections (2026-08 revision)
+
+The original notebook pipeline has two defects that `vol_forecasting.py` fixes (each covered by a unit test):
+
+1. **Target definition.** The LSTM predicted the *current* 30-day rolling volatility, whose estimation window overlaps ~29/30 days with the input features; such a model mostly restates persistence. The corrected target is realized volatility over the *next* h days, computed from strictly future returns.
+2. **Scaler leakage.** `MinMaxScaler` was fit on the full sample before the chronological split; the corrected utility scales with train-window statistics only.
+
+The module also adds what any volatility-forecasting claim must be measured against: the HAR-RV baseline (Corsi 2009), the QLIKE loss (the standard robust loss for variance forecasts), and a Diebold-Mariano comparison test. Notebook outputs are retained as the historical record of the original experiments.
+
+### Benchmark result (SPY, 21-day forward vol, OOS 2017-12 to 2026-07)
+
+`run_vol_benchmark.py` runs the corrected pipeline end to end on ~21 years of SPY daily data (2,153 OOS observations, expanding-window refits every 21 days, checked-in results in `results/`):
+
+| model | QLIKE | MSE | DM vs persistence |
+|---|---|---|---|
+| persistence (RV random walk) | 0.793 | 0.0120 | - |
+| HAR-RV | **0.543** | 0.0090 | -3.83 (p = 0.0001) |
+| ridge (HAR features + return extras) | 0.543 | 0.0084 | -3.77 (p = 0.0002) |
+
+HAR-RV beats persistence decisively, and the regularized ML model is statistically indistinguishable from HAR-RV (DM -0.01, p = 0.99), replicating the standard finding that ML gains over HAR-RV on index volatility are marginal. Any LSTM re-run of the original notebook experiments should be held to this bar.
+
 ## Known limits
 
-- Sentiment is driven by TextBlob rather than a finance-specific language model
+- Sentiment is driven by TextBlob rather than a finance-specific language model (FinBERT or LLM scoring is the natural upgrade; raw text is already stored)
 - The workflow is notebook-centric and depends on interactive execution order
-- Market and option-chain data from public sources can be sparse or inconsistent
+- Market and option-chain data from public sources can be sparse or inconsistent; yfinance chains are current-snapshot only, so implied-vol comparisons should use mids and drop zero-bid strikes
 - Black-Scholes is used as a baseline pricing model and does not capture the full surface dynamics of listed options
