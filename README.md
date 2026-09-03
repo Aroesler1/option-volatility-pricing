@@ -225,6 +225,14 @@ and destroy the mean. The intraday estimator produces zero such collapses. Mean
 and median are both reported precisely so this tail behaviour is visible rather
 than hidden behind whichever summary flatters the story.
 
+HARQ shows why the collapse count is a floor indicator and not a health check: it
+posts a mean of 35.6 with **zero** collapses, because the counter only catches
+forecasts pinned to the clipping floor (`pred <= 1.01e-4`) and HARQ's worst
+forecasts land just above it — small enough that QLIKE's unbounded
+under-forecast penalty still dominates the mean, large enough never to be
+counted. A collapse count of 0 therefore means "nothing hit the floor", not
+"nothing went wrong"; the mean-median gap is the statistic that catches it.
+
 **Those collapses also destroy the MCS's power.** On the daily proxy eight of
 nine models are in the 90% MCS, including persistence. That is not evidence that
 persistence is competitive; it is the bootstrap variance of the loss
