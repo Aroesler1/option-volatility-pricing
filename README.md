@@ -5,9 +5,11 @@ out-of-sample under QLIKE with Diebold-Mariano tests on 21 years of SPY.
 
 ## What it does
 
-- **Six forecasters compared like-for-like**: persistence, HAR-RV (Corsi 2009),
-  HARQ (Bollerslev-Patton-Quaedvlieg), path-dependent volatility
-  (Guyon-Lekeufack), a nested HAR+PDV, and option-implied volatility
+- **Nine forecasters compared like-for-like** in the intraday arm: persistence,
+  HAR-RV (Corsi 2009), HARQ (Bollerslev-Patton-Quaedvlieg), path-dependent
+  volatility (Guyon-Lekeufack), a nested HAR+PDV, log-HAR, WLS-HAR under two
+  weightings, and an equal-weight combination — with option-implied volatility
+  and ridge compared in the other two arms
 - **Three data regimes**, so the effect of the input is separable from the
   effect of the model: a daily-return proxy, true 5-minute realized variance
   from Databento intraday bars, and the OptionMetrics implied-volatility surface
@@ -179,9 +181,7 @@ approach 0.10.
 than HARQ, and log-HAR and WLS-HAR(1/RV) also beat it on the median. The
 previous headline here - that HARQ posts the best median QLIKE once it has real
 intraday quarticity - no longer holds: log-HAR's 0.0946 beats HARQ's 0.1000, and
-it gets there by changing the estimator rather than the model. **HARQ survives
-the Clements-Preve remedies in the sense that matters statistically, but it no
-longer wins.**
+it gets there by changing the estimator rather than the model.
 
 **HARQ is not rejected.** It sits inside the 90% MCS, as does plain HAR-RV. The
 honest statement is two-sided: the remedies win on point estimate, and the MCS
