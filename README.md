@@ -13,8 +13,11 @@ out-of-sample under QLIKE with Diebold-Mariano tests on 21 years of SPY.
   from Databento intraday bars, and the OptionMetrics implied-volatility surface
 - **Expanding-window refits** with a forward target built from strictly future
   returns, train-only scaling, and QLIKE as the loss
-- **Diebold-Mariano with a Newey-West lag of h−1**, because these are
-  overlapping h-step forecasts
+- **A Model Confidence Set** (Hansen, Lunde & Nason 2011) over all nine models,
+  because pairwise Diebold-Mariano is the wrong tool for ranking many
+  forecasters; DM with a Newey-West lag of h−1 is retained alongside it
+- **The Clements-Preve remedies** — log-RV transformation and WLS estimation —
+  which beat both HAR and HARQ here
 
 ## The three results
 
@@ -24,8 +27,11 @@ out-of-sample under QLIKE with Diebold-Mariano tests on 21 years of SPY.
 2. **The realized-variance estimator matters as much as the model.** Switching
    from a daily-return proxy to true intraday RV improves HAR-RV's median QLIKE
    from 0.1378 to 0.1064, and eliminates catastrophic forecast collapses.
-3. **Nothing built from returns alone beats HAR-RV.** Not HARQ, not PDV, not
-   ridge. That null is reported as plainly as the positive result.
+3. **The winning change is to the estimator, not the model.** On true intraday
+   RV, fitting HAR on log RV or by weighted least squares beats both HAR and
+   HARQ, while PDV, HAR+PDV and a forecast combination are rejected from the
+   90% Model Confidence Set. Those nulls are reported as plainly as the
+   positive result.
 
 ## Out-of-sample results
 
@@ -130,15 +136,82 @@ and varies only the estimator. Intraday data is SPY 1-minute bars from Databento
 `XNAS.ITCH`, aggregated to 5-minute returns. Both arms predict the *same*
 intraday-based target, so only the regressors' estimator differs.
 
-| estimator | model | QLIKE mean | QLIKE median | collapsed forecasts |
+Nine forecasters are compared, and the comparison is made with the **Model
+Confidence Set** of [Hansen, Lunde and Nason](https://www.jstor.org/stable/41057463)
+(*Econometrica* 79(2), 2011) rather than a fan of pairwise Diebold-Mariano
+tests. With nine models there are 36 pairwise comparisons, each run at nominal
+size, and the answer depends on which model gets nominated as the benchmark.
+The MCS needs no benchmark: it returns the set of models that cannot be
+distinguished from the best one, at a stated confidence level. The
+implementation uses the range statistic of Hansen, Lunde and Nason (2003) with a
+stationary bootstrap (Politis-Romano), which is what the overlapping 21-day
+forecasts require - their loss differentials are serially correlated out to
+about 20 lags.
+
+Four of the nine come from Clements and Preve,
+["A Practical Guide to Harnessing the HAR Volatility Model"](https://www.garp.org/hubfs/Whitepapers/a2r1W000000iDb0QAE_RiskIntell.6.20.19.Whitepaper.Volatility.pdf)
+(*Journal of Banking and Finance*, 2021; [SSRN 3369484](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3369484)).
+Their argument is that standard HAR pairs a dependent variable with sample
+skewness above 10 with an estimator that is only efficient under homoskedastic
+Gaussian errors, and that fixing the pairing beats improving the model. On SPX,
+DJI and DAX they find the WLS and transformed-RV schemes are *always* in the 90%
+MCS, while HARQ is not.
+
+### Intraday 5-minute RV
+
+| model | QLIKE mean | QLIKE median | collapsed | MCS p | in 90% MCS |
+|---|---|---|---|---|---|
+| **WLS-HAR** (w = 1/sqrt(RQ)) | **0.2132** | 0.0993 | 0 | 1.000 | **yes** |
+| **log-HAR** | 0.2156 | **0.0946** | 0 | 0.696 | **yes** |
+| **WLS-HAR** (w = 1/RV) | 0.2166 | 0.0960 | 0 | 0.696 | **yes** |
+| mean combination | 0.2222 | 0.0994 | 0 | 0.089 | no |
+| HAR-RV | 0.2307 | 0.1064 | 0 | 0.191 | yes |
+| HARQ | 0.2315 | 0.1000 | 0 | 0.191 | yes |
+| HAR + PDV | 0.2378 | 0.1300 | 0 | 0.014 | no |
+| PDV | 0.3388 | 0.2303 | 0 | 0.001 | no |
+| persistence | 0.6422 | 0.1438 | 0 | 0.001 | no |
+
+**MCS(90%) = {WLS-HAR(RQ), log-HAR, WLS-HAR(RV), HAR-RV, HARQ}.** Membership is
+identical across eight bootstrap seeds, and the excluded models' p-values never
+approach 0.10.
+
+**The Clements-Preve remedies beat HARQ.** All three post a lower mean QLIKE
+than HARQ, and log-HAR and WLS-HAR(1/RV) also beat it on the median. The
+previous headline here - that HARQ posts the best median QLIKE once it has real
+intraday quarticity - no longer holds: log-HAR's 0.0946 beats HARQ's 0.1000, and
+it gets there by changing the estimator rather than the model. **HARQ survives
+the Clements-Preve remedies in the sense that matters statistically, but it no
+longer wins.**
+
+**HARQ is not rejected.** It sits inside the 90% MCS, as does plain HAR-RV. The
+honest statement is two-sided: the remedies win on point estimate, and the MCS
+cannot separate any of the five from each other on 821 overlapping
+observations. What the MCS *does* settle is the bottom of the table - PDV,
+HAR+PDV and persistence are excluded decisively.
+
+**The forecast combination is excluded, and its constituents are not.** That
+looks contradictory until you look at the elimination rule, which is
+studentized. The combination is the average of HAR, HARQ, log-HAR and
+WLS-HAR(1/RV), so it shares almost all of its variance with them; being
+slightly worse than the best constituent is therefore measured very precisely,
+and it is eliminated early despite a mean loss below HAR's and HARQ's. Equal
+weighting is usually hard to beat, but not when one constituent dominates the
+pool. (Forecast combination is not a Clements-Preve remedy - their paper does
+not consider it. It is included so the MCS has one to reject.)
+
+### Daily-return proxy, same target
+
+| model | QLIKE mean | QLIKE median | collapsed | in 90% MCS |
 |---|---|---|---|---|
-| intraday 5-min RV | persistence | 0.6422 | 0.1438 | 0 |
-| intraday 5-min RV | **HAR-RV** | 0.2307 | 0.1064 | 0 |
-| intraday 5-min RV | **HARQ** | 0.2315 | **0.1000** | 0 |
-| intraday 5-min RV | HAR+PDV | 0.2378 | 0.1300 | 0 |
-| daily-return proxy | HAR-RV | **2300.3** | 0.1378 | **2** |
-| daily-return proxy | HARQ | 35.6 | 0.1251 | 0 |
-| daily-return proxy | HAR+PDV | **23,000,658** | 0.1620 | **2** |
+| WLS-HAR (w = 1/RV) | 0.2759 | **0.1181** | 0 | yes |
+| WLS-HAR (w = 1/sqrt(RQ)) | 0.2452 | 0.1205 | 0 | yes |
+| log-HAR | 0.2480 | 0.1224 | 0 | yes |
+| mean combination | 0.2537 | 0.1235 | 0 | yes |
+| HARQ | 35.6 | 0.1251 | 0 | yes |
+| HAR-RV | **2300.3** | 0.1378 | **2** | yes |
+| HAR + PDV | **23,000,658** | 0.1620 | **2** | yes |
+| persistence | 0.3232 | 0.1925 | 0 | yes |
+| PDV | 0.3388 | 0.2303 | 0 | no |
 
 Three things follow.
 
@@ -150,18 +223,17 @@ QLIKE improves from 0.1378 to 0.1064 purely by changing the estimator.
 under-forecasting without bound, those two days each contribute roughly 944,000
 and destroy the mean. The intraday estimator produces zero such collapses. Mean
 and median are both reported precisely so this tail behaviour is visible rather
-than hidden behind whichever summary flatters the story — a volatility model
-that occasionally forecasts approximately zero is dangerous in a way an average
-does not convey.
+than hidden behind whichever summary flatters the story.
 
-**HARQ only works with the data it was designed for.** On the daily proxy, HARQ
-was statistically indistinguishable from HAR (p = 0.78 in the table above). With
-genuine intraday realized quarticity it posts the best median QLIKE of any model
-tested, 0.1000 against HAR's 0.1064. That is exactly what the theory predicts:
-HARQ corrects for time-varying measurement error in realized variance, and a
-daily-return proxy for quarticity is too coarse to carry that signal. The
-improvement does not clear significance on the mean-based DM test (+0.61,
-p = 0.54), so it is reported as suggestive rather than established.
+**Those collapses also destroy the MCS's power.** On the daily proxy eight of
+nine models are in the 90% MCS, including persistence. That is not evidence that
+persistence is competitive; it is the bootstrap variance of the loss
+differentials being inflated by two observations of order 1e6 until nothing can
+be distinguished from anything. It is a good illustration of why the collapse
+count belongs in the table: a single pathological forecast does not just move a
+mean, it disables the inference. The remedies help here too - **log-HAR and
+WLS-HAR produce zero collapses on the daily proxy as well**, log-HAR because
+exp() cannot return a non-positive forecast, so there is nothing to clip.
 
 Reproduce:
 
@@ -179,7 +251,17 @@ Two methodology points that materially affect these numbers:
 2. **The DM tests use a Newey-West lag of h-1 = 20.** These are overlapping
    21-day forecasts, so loss differentials are serially correlated out to ~20
    lags; the generic n^(1/3) default (~13) understates the long-run variance and
-   overstates significance.
+   overstates significance. The MCS handles the same dependence through the
+   stationary bootstrap's block length rather than a kernel lag.
+3. **The Clements-Preve remedies are adapted from variance to volatility
+   units.** Their HAR models realized variance; this repository models
+   annualized realized volatility throughout and squares the forecast inside
+   QLIKE. Because log(RV) = 2·log(vol), the log-HAR slope coefficients are
+   identical either way and only the intercept and the retransformation
+   constant differ, so the +σ²/2 correction is applied on the scale the model
+   is estimated on. The WLS weights follow their section 2.3.3 verbatim:
+   w = 1/RV and w = 1/√RQ. Their other two schemes (GARCH-fitted weights, and
+   weights from a fitted OLS HAR) are not implemented.
 
 Reproduce:
 
@@ -199,7 +281,7 @@ claim in this README depends on it.
 ## Repository layout
 
 - `Main.ipynb`: end-to-end notebook for data collection, feature engineering, modeling, and option-pricing experiments
-- `vol_forecasting.py`: corrected, tested forecasting methodology (forward realized-vol target, train-only scaling, HAR-RV baseline, QLIKE, Diebold-Mariano)
+- `vol_forecasting.py`: corrected, tested forecasting methodology (forward realized-vol target, train-only scaling, HAR-RV / HARQ / PDV / log-HAR / WLS-HAR, QLIKE, Diebold-Mariano, and the Model Confidence Set)
 - `tests/`: unit tests for the corrected methodology (no network or credentials needed)
 - `data/weekly_stock_data.csv`: weekly multi-ticker research dataset with prices, sentiment, and forward-looking targets
 - `data/TSM_data.csv`: daily volatility-oriented dataset used in the notebook experiments
@@ -271,3 +353,5 @@ HAR-RV beats persistence decisively, and the regularized ML model is statistical
 - The workflow is notebook-centric and depends on interactive execution order
 - Market and option-chain data from public sources can be sparse or inconsistent; yfinance chains are current-snapshot only, so implied-vol comparisons should use mids and drop zero-bid strikes
 - Black-Scholes is used as a baseline pricing model and does not capture the full surface dynamics of listed options
+- The MCS is run on 821 overlapping 21-day forecasts from a single asset. It separates the bottom of the table decisively but cannot separate the top five, and a longer sample or a cross-section of assets is what would settle that
+- Clements and Preve also propose LAD (robust regression), a quartic-root transformation, and two further WLS weighting schemes. Only log-RV and the two nonparametric WLS schemes are implemented here

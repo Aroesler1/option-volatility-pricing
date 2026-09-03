@@ -30,7 +30,10 @@ from vol_forecasting import (
     HARPDV,
     HARQ,
     HARRV,
+    LogHARRV,
     PDVModel,
+    WLSHARRV,
+    clements_preve_weights,
     diebold_mariano,
     forward_realized_vol,
     realized_vol,
@@ -242,3 +245,45 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def log_har_forecasts(frame: pd.DataFrame, test_start: int, refit: int) -> pd.Series:
+    """log-HAR (Clements-Preve), refit on an expanding window.
+
+    Fitted on log RV and retransformed with the +sigma_u^2/2 correction; the
+    residual variance is re-estimated on each training window, never on test.
+    """
+    preds = pd.Series(np.nan, index=frame.index)
+    for block_start in range(test_start, len(frame), refit):
+        train = frame.iloc[:block_start]
+        block = frame.iloc[block_start:block_start + refit]
+        if len(train) < 200 or block.empty:
+            continue
+        model = LogHARRV().fit_log(train["rv"], train["target"])
+        history = frame["rv"].iloc[: block_start + len(block)]
+        preds.loc[block.index] = model.predict_log(history).loc[block.index].clip(lower=1e-4)
+    return preds
+
+
+def wls_har_forecasts(frame: pd.DataFrame, test_start: int, refit: int,
+                      scheme: str = "rv") -> pd.Series:
+    """WLS-HAR (Clements-Preve), refit on an expanding window.
+
+    `scheme` selects the weighting: "rv" gives w_t = 1/RV_t, "rq" gives
+    w_t = 1/sqrt(RQ_t). See `clements_preve_weights`.
+    """
+    preds = pd.Series(np.nan, index=frame.index)
+    for block_start in range(test_start, len(frame), refit):
+        train = frame.iloc[:block_start]
+        block = frame.iloc[block_start:block_start + refit]
+        if len(train) < 200 or block.empty:
+            continue
+        weights = clements_preve_weights(
+            rv=train["rv"] if scheme == "rv" else None,
+            rq=train["rq"] if scheme == "rq" else None,
+            scheme=scheme,
+        )
+        model = WLSHARRV().fit_wls(train["rv"], train["target"], weights)
+        history = frame["rv"].iloc[: block_start + len(block)]
+        preds.loc[block.index] = model.predict(history).loc[block.index].clip(lower=1e-4)
+    return preds
