@@ -38,10 +38,17 @@ from run_vol_benchmark import (
     har_forecasts,
     har_pdv_forecasts,
     harq_forecasts,
+    log_har_forecasts,
     pdv_forecasts,
     qlike_series,
+    wls_har_forecasts,
 )
-from vol_forecasting import diebold_mariano, realized_vol
+from vol_forecasting import (
+    diebold_mariano,
+    mean_combination,
+    model_confidence_set,
+    realized_vol,
+)
 
 TRADING_DAYS = 252
 
@@ -99,7 +106,14 @@ def build_frames(intraday_path: Path, horizon: int) -> tuple[pd.DataFrame, pd.Da
     return a.loc[common], b.loc[common]
 
 
-def evaluate(frame: pd.DataFrame, label: str, refit: int, test_frac: float, horizon: int) -> pd.DataFrame:
+# The four HAR-family forecasts averaged by the combination. Equal weights, no
+# estimation: the combination is meant to be the cheapest possible remedy.
+COMBINATION_MEMBERS = ("har_rv", "harq", "log_har", "wls_har_rv")
+
+
+def evaluate(frame: pd.DataFrame, label: str, refit: int, test_frac: float,
+             horizon: int, alpha: float = 0.10, n_boot: int = 2000,
+             seed: int = 0) -> pd.DataFrame:
     test_start = int(len(frame) * (1.0 - test_frac))
     test = frame.iloc[test_start:]
     forecasts = {
@@ -108,7 +122,13 @@ def evaluate(frame: pd.DataFrame, label: str, refit: int, test_frac: float, hori
         "harq": harq_forecasts(frame, test_start, refit),
         "pdv": pdv_forecasts(frame, test_start, refit),
         "har_pdv": har_pdv_forecasts(frame, test_start, refit),
+        # Clements & Preve (2021) remedies
+        "log_har": log_har_forecasts(frame, test_start, refit),
+        "wls_har_rv": wls_har_forecasts(frame, test_start, refit, scheme="rv"),
+        "wls_har_rq": wls_har_forecasts(frame, test_start, refit, scheme="rq"),
     }
+    forecasts["combination"] = mean_combination(
+        [forecasts[m].loc[test.index] for m in COMBINATION_MEMBERS])
     losses = {k: qlike_series(v.loc[test.index], test["target"]) for k, v in forecasts.items()}
     rows = []
     for name, loss in losses.items():
@@ -138,6 +158,16 @@ def evaluate(frame: pd.DataFrame, label: str, refit: int, test_frac: float, hori
         diebold_mariano(losses[m], losses["har_rv"], lag=dm_lag)[1] if m != "har_rv" else np.nan
         for m in table["model"]
     ]
+
+    # Pairwise DM answers "is model X better than the benchmark I nominated".
+    # With nine models that is nine tests at nominal size and a benchmark chosen
+    # after seeing the data. The MCS asks the question that was actually meant:
+    # which models cannot be distinguished from the best one.
+    mcs = model_confidence_set(pd.DataFrame(losses).dropna(), alpha=alpha,
+                               n_boot=n_boot, seed=seed)
+    table = table.merge(
+        mcs[["mcs_pvalue", "in_mcs"]].rename_axis("model").reset_index(),
+        on="model", how="left")
     return table
 
 
@@ -148,6 +178,11 @@ def main() -> int:
     parser.add_argument("--refit", type=int, default=21)
     parser.add_argument("--test-frac", type=float, default=0.4)
     parser.add_argument("--out-dir", type=Path, default=Path("results"))
+    parser.add_argument("--alpha", type=float, default=0.10,
+                        help="1 - alpha is the MCS confidence level (0.10 -> 90%% MCS)")
+    parser.add_argument("--n-boot", type=int, default=2000,
+                        help="stationary-bootstrap replications for the MCS")
+    parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
     intraday, daily = build_frames(args.intraday, args.horizon)
@@ -155,15 +190,20 @@ def main() -> int:
           f"{intraday.index.min().date()} -> {intraday.index.max().date()}")
     print(f"target: forward {args.horizon}d realized vol from intraday variance (identical in both)\n")
 
-    a = evaluate(intraday, "intraday 5-min RV", args.refit, args.test_frac, args.horizon)
-    b = evaluate(daily, "daily-return proxy", args.refit, args.test_frac, args.horizon)
+    a = evaluate(intraday, "intraday 5-min RV", args.refit, args.test_frac,
+                 args.horizon, args.alpha, args.n_boot, args.seed)
+    b = evaluate(daily, "daily-return proxy", args.refit, args.test_frac,
+                 args.horizon, args.alpha, args.n_boot, args.seed)
     table = pd.concat([a, b], ignore_index=True)
 
     for label in table["estimator"].unique():
-        sub = table[table["estimator"] == label]
-        print(f"{label}")
-        print(sub[["model", "qlike_mean", "qlike_median", "collapsed", "dm_vs_har", "p_vs_har"]]
+        sub = table[table["estimator"] == label].sort_values("qlike_median")
+        print(f"{label}   ({(1 - args.alpha):.0%} MCS, {args.n_boot} stationary-bootstrap draws)")
+        print(sub[["model", "qlike_mean", "qlike_median", "collapsed",
+                   "mcs_pvalue", "in_mcs", "dm_vs_har", "p_vs_har"]]
               .to_string(index=False, float_format=lambda v: f"{v:0.4f}"))
+        members = sub.loc[sub["in_mcs"], "model"].tolist()
+        print(f"  MCS_{(1 - args.alpha):.0%} = {{{', '.join(members)}}}")
         print()
 
     best = table.loc[table.groupby("estimator")["qlike_median"].idxmin()]
