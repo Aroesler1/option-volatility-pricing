@@ -15,6 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from option_strategies import (  # noqa: E402
     StraddleConfig,
+    newey_west_tstat,
+    variance_swap_summary,
     max_drawdown,
     paired_block_bootstrap_pvalue,
     sharpe,
@@ -279,3 +281,70 @@ def test_flat_days_are_zero_returns_not_missing_days():
     assert len(trades) == 1
     assert len(book) == n
     assert (book.iloc[11:] == 0.0).all()
+
+
+# ---------------------------------------------------------------------------
+# overlapping-payoff statistics
+# ---------------------------------------------------------------------------
+
+
+def test_newey_west_shrinks_the_tstat_of_an_overlapping_series():
+    """An overlapping mean has a naive t-statistic inflated by the overlap.
+
+    A 21-day rolling sum of i.i.d. noise is exactly that situation: consecutive
+    observations share 20 of their 21 terms. The Newey-West statistic has to
+    come out substantially smaller than the naive one.
+    """
+    rng = np.random.default_rng(9)
+    raw = pd.Series(rng.normal(0.5, 1.0, size=2000),
+                    index=pd.bdate_range("2018-01-01", periods=2000))
+    overlapping = raw.rolling(21).mean().dropna()
+    naive = overlapping.mean() / (overlapping.std() / np.sqrt(len(overlapping)))
+    corrected = newey_west_tstat(overlapping, lag=20)
+    assert corrected > 0
+    assert corrected < naive / 2
+
+
+def test_newey_west_matches_the_naive_tstat_at_zero_lag():
+    rng = np.random.default_rng(10)
+    x = pd.Series(rng.normal(0.3, 1.0, size=500),
+                  index=pd.bdate_range("2018-01-01", periods=500))
+    naive = x.mean() / (x.std(ddof=0) / np.sqrt(len(x)))
+    assert newey_west_tstat(x, lag=0) == pytest.approx(naive)
+
+
+def test_newey_west_is_nan_on_a_series_too_short_to_judge():
+    x = pd.Series([1.0, 2.0, 3.0], index=pd.bdate_range("2020-01-01", periods=3))
+    assert np.isnan(newey_west_tstat(x, lag=1))
+
+
+def test_variance_swap_summary_separates_overlapping_from_independent_counts():
+    idx = pd.bdate_range("2018-01-01", periods=420)
+    payoff = pd.Series(-0.02, index=idx)
+    out = variance_swap_summary(payoff, horizon=21)
+    assert out["n_overlapping"] == 420
+    assert out["n_non_overlapping"] == 20
+    assert out["mean_variance_points"] == pytest.approx(-0.02)
+    assert out["share_positive"] == 0.0
+    assert out["worst_observation"] == pytest.approx(-0.02)
+
+
+def test_variance_swap_summary_annualises_by_periods_per_year_not_by_days():
+    """A 21-day payoff compounds about 12 times a year, not 252 times.
+
+    Annualising an overlapping 21-day series with sqrt(252) overstates its
+    Sharpe by roughly sqrt(21), which is how a variance-swap payoff ends up
+    reported with a Sharpe of -12.
+    """
+    rng = np.random.default_rng(11)
+    idx = pd.bdate_range("2018-01-01", periods=42 * 21)
+    payoff = pd.Series(rng.normal(-0.02, 0.05, size=len(idx)), index=idx)
+    out = variance_swap_summary(payoff, horizon=21)
+    non_overlap = payoff.iloc[::21]
+    expected = non_overlap.mean() / non_overlap.std() * np.sqrt(252 / 21)
+    assert out["sharpe_annualised"] == pytest.approx(expected)
+    assert abs(out["sharpe_annualised"]) < 5.0
+
+
+def test_variance_swap_summary_is_empty_for_an_empty_payoff():
+    assert variance_swap_summary(pd.Series(dtype=float)) == {}
