@@ -268,7 +268,13 @@ def straddle_backtest(chain: pd.DataFrame, entries: pd.DataFrame, underlying: pd
     if not daily:
         return pd.Series(dtype=float), pd.DataFrame()
     book = pd.concat(daily, axis=1).sum(axis=1, min_count=1) / config.hold_days
-    return book.sort_index(), pd.DataFrame(trades)
+    # Days on which the rule said "flat" are zero-return days, not missing days.
+    # Dropping them would divide the same total P&L by a smaller day count and
+    # inflate every Sharpe by the square root of the share of days traded, and
+    # it would do so by a different amount for each model, which is exactly the
+    # comparison this table exists to make.
+    full = pd.DatetimeIndex(signal.index).union(book.index)
+    return book.reindex(full).fillna(0.0).sort_index(), pd.DataFrame(trades)
 
 
 def straddle_signal(forecast_vol: pd.Series, implied_vol: pd.Series,

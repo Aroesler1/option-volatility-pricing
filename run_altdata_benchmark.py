@@ -30,6 +30,13 @@ Marginal value (Table B): HAR plus ONE feature, once per feature, so each
 feature's incremental contribution is visible instead of being pooled into a
 single kitchen-sink number that cannot be attributed.
 
+Marginal value against a strong base (Table C): the same one-feature-at-a-time
+exercise, but on top of HAR plus semivariance plus implied variance rather than
+on top of bare HAR. Most of the alternative-data literature tests one data type
+against a bare HAR benchmark, which overstates what the data adds once the two
+cheap improvements are already in the model. Table C is the honest version of
+Table B and the two are reported side by side.
+
 Sample. The alternative-data panel is limited at the right-hand end by
 OptionMetrics coverage in WRDS, so this study stops there while the baseline
 chapter of the README keeps its longer sample. Every model is evaluated on the
@@ -57,6 +64,7 @@ from vol_forecasting import (
     HARRV,
     HARX,
     SHARRV,
+    semivol,
     diebold_mariano,
     mean_combination,
     model_confidence_set,
@@ -67,6 +75,9 @@ FLOOR = 1e-4
 MIN_TRAIN = 400
 COMBINATION_MEMBERS = ("har", "shar", "har_rv_iv", "har_x_lasso", "hgb",
                        "lstm", "lstm_x")
+# HAR plus the two improvements that need no alternative data at all: the
+# signed split of the daily term, and what the option market already prices
+RICH_BASE = ("rs_pos_vol", "rs_neg_vol", "atm_ivar_30")
 
 
 # ---------------------------------------------------------------------------
@@ -244,6 +255,8 @@ def build_frame(intraday_path: Path, horizon: int, data_dir: Path,
         "rv_m": rv.rolling(22).mean(),
         "rs_pos_var": intra["rs_pos_var"],
         "rs_neg_var": intra["rs_neg_var"],
+        "rs_pos_vol": semivol(intra["rs_pos_var"]),
+        "rs_neg_vol": semivol(intra["rs_neg_var"]),
         "target": forward_vol_from_variance(intra["rv5m_var"], horizon),
     })
     frame = pd.concat([base, panel[ALL_FEATURES]], axis=1).dropna()
@@ -329,6 +342,25 @@ def run_horizon(args, horizon: int) -> dict[str, pd.DataFrame]:
                         for m in table_b["model"]]
     table_b.insert(0, "horizon", horizon)
 
+    rich_base = list(RICH_BASE)
+    rich = {"har_rs_iv": walk_forward(frame, test_start, args.refit,
+                                      make_harx_fp(rich_base), purge=purge)}
+    for feat in features:
+        if feat in rich_base:
+            continue
+        rich[f"rich_x__{feat}"] = walk_forward(
+            frame, test_start, args.refit, make_harx_fp(rich_base + [feat]),
+            purge=purge)
+    table_c, losses_c = score(rich, test, horizon, benchmark="har_rs_iv")
+    table_c = attach_mcs(table_c, losses_c, args.alpha, args.n_boot, args.seed)
+    rich_mean = float(table_c.loc[table_c["model"] == "har_rs_iv", "qlike_mean"].iloc[0])
+    table_c["qlike_delta_vs_base"] = table_c["qlike_mean"] - rich_mean
+    table_c["block"] = [FEATURE_BLOCK.get(m.replace("rich_x__", ""), "baseline")
+                        for m in table_c["model"]]
+    table_c = table_c.rename(columns={"dm_vs_har": "dm_vs_base",
+                                      "p_vs_har": "p_vs_base"})
+    table_c.insert(0, "horizon", horizon)
+
     rolling = rolling_model_confidence_set(
         losses_a, window=args.mcs_window, step=args.refit, alpha=args.alpha,
         n_boot=args.rolling_boot, seed=args.seed)
@@ -338,8 +370,8 @@ def run_horizon(args, horizon: int) -> dict[str, pd.DataFrame]:
 
     forecasts = pd.DataFrame(structural).loc[test.index]
     forecasts.insert(0, "target", test["target"])
-    return {"table_a": table_a, "table_b": table_b, "rolling": rolling,
-            "forecasts": forecasts, "coverage": coverage}
+    return {"table_a": table_a, "table_b": table_b, "table_c": table_c,
+            "rolling": rolling, "forecasts": forecasts, "coverage": coverage}
 
 
 def main() -> int:
@@ -362,7 +394,7 @@ def main() -> int:
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     tag = args.tag or ("" if not args.extra_lag else f"_lag{args.extra_lag}")
-    a_parts, b_parts, r_parts = [], [], []
+    a_parts, b_parts, c_parts, r_parts = [], [], [], []
     for horizon in args.horizons:
         res = run_horizon(args, horizon)
         if horizon == args.horizons[0]:
@@ -379,8 +411,14 @@ def main() -> int:
             ["model", "block", "qlike_mean", "qlike_delta_vs_har", "dm_vs_har",
              "p_vs_har", "in_mcs"]]
             .to_string(index=False, float_format=lambda v: f"{v:0.4f}"))
+        print("\nC. HAR + semivariance + implied variance, plus one feature")
+        print(res["table_c"].sort_values("qlike_mean")[
+            ["model", "block", "qlike_mean", "qlike_delta_vs_base", "dm_vs_base",
+             "p_vs_base", "in_mcs"]]
+            .to_string(index=False, float_format=lambda v: f"{v:0.4f}"))
         a_parts.append(res["table_a"])
         b_parts.append(res["table_b"])
+        c_parts.append(res["table_c"])
         if not res["rolling"].empty:
             r_parts.append(res["rolling"])
         res["forecasts"].to_csv(args.out_dir / f"altdata_forecasts_h{horizon}{tag}.csv")
@@ -389,6 +427,8 @@ def main() -> int:
         args.out_dir / f"altdata_models{tag}.csv", index=False)
     pd.concat(b_parts, ignore_index=True).to_csv(
         args.out_dir / f"altdata_marginal{tag}.csv", index=False)
+    pd.concat(c_parts, ignore_index=True).to_csv(
+        args.out_dir / f"altdata_marginal_rich{tag}.csv", index=False)
     if r_parts:
         pd.concat(r_parts, ignore_index=True).to_csv(
             args.out_dir / f"altdata_rolling_mcs{tag}.csv", index=False)
