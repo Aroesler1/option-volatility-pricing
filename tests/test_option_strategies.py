@@ -263,3 +263,19 @@ def test_paired_bootstrap_detects_a_real_sharpe_difference():
     assert diff > 0
     assert p < 0.05
     assert sharpe(good) > sharpe(bad)
+
+
+def test_flat_days_are_zero_returns_not_missing_days():
+    """A model that trades rarely must not get a Sharpe computed on trading days only."""
+    n = 60
+    dates = pd.bdate_range("2020-01-01", periods=n)
+    chain = synthetic_chain(np.linspace(5.0, 7.0, n), np.full(n, 5.0), dates=dates)
+    entries = pd.DataFrame({"date": dates, "exdate": EXDATE, "strike": STRIKE})
+    under = pd.Series(100.0, index=dates)
+    signal = pd.Series(0, index=dates)
+    signal.iloc[0] = 1                       # one trade, 59 flat days
+    config = StraddleConfig(hold_days=10, spread_fraction=0.0, delta_hedge=False)
+    book, trades = straddle_backtest(chain, entries, under, signal, config)
+    assert len(trades) == 1
+    assert len(book) == n
+    assert (book.iloc[11:] == 0.0).all()

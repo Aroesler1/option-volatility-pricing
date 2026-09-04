@@ -103,19 +103,24 @@ def run_straddles(forecasts: pd.DataFrame, implied: pd.Series, chain: pd.DataFra
             if book.empty:
                 continue
             stats = performance(book)
+            years = max(len(book) / 252.0, 1e-9)
             stats.update({
                 "model": model, "variant": label,
                 "n_trades": int(len(trades)),
                 "trade_hit_rate": float((trades["trade_return"] > 0).mean()),
                 "mean_trade_return": float(trades["trade_return"].mean()),
                 "long_share": float((trades["direction"] > 0).mean()),
+                # each trade commits 1/hold_days of the premium budget, so this
+                # is premium turned over per year as a fraction of capital
+                "turnover_ann": float(len(trades) / years / config.hold_days),
+                "trades_per_year": float(len(trades) / years),
             })
             rows.append(stats)
             series[f"{model}__{label}"] = book
     table = pd.DataFrame(rows)
     front = ["model", "variant", "sharpe", "mean_ann", "vol_ann", "max_drawdown",
              "worst_month", "hit_rate", "trade_hit_rate", "mean_trade_return",
-             "n_trades", "long_share", "n_days"]
+             "turnover_ann", "n_trades", "trades_per_year", "long_share", "n_days"]
     table = table[[c for c in front if c in table.columns]]
     return table.sort_values(["variant", "sharpe"], ascending=[True, False]), series, rules
 
