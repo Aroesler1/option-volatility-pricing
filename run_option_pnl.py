@@ -165,14 +165,33 @@ def main() -> int:
         qlike_winner = min(forecast_models,
                            key=lambda m: qlike_series(forecasts[m], forecasts["target"]).mean())
         sharpe_winner = table[table["model"] != "buy_and_hold"].iloc[0]["model"]
-        diff, p = paired_block_bootstrap_pvalue(series[sharpe_winner],
-                                                series[qlike_winner],
-                                                n_boot=args.n_boot)
-        print(f"  QLIKE winner {qlike_winner}, Sharpe winner {sharpe_winner}: "
-              f"Sharpe difference {diff:+.3f}, paired block bootstrap p = {p:.3f}")
-        vm_tables[-1] = vm_tables[-1].assign(
-            qlike_winner=qlike_winner, sharpe_winner=sharpe_winner,
-            sharpe_diff=diff, sharpe_diff_p=p)
+        # The headline comparison is QLIKE winner against Sharpe winner. When
+        # they are the same model that test is vacuous by construction, so the
+        # Sharpe winner is also compared against HAR and against holding the
+        # index; one of those is always a comparison that can fail.
+        comparisons = {
+            "qlike_winner": qlike_winner,
+            "har": "har",
+            "buy_and_hold": "buy_and_hold",
+        }
+        stats = {"qlike_winner": qlike_winner, "sharpe_winner": sharpe_winner}
+        for label, other in comparisons.items():
+            if other not in series or other == sharpe_winner:
+                stats[f"diff_vs_{label}"] = 0.0 if other == sharpe_winner else np.nan
+                stats[f"p_vs_{label}"] = np.nan
+                continue
+            diff, p = paired_block_bootstrap_pvalue(series[sharpe_winner],
+                                                    series[other],
+                                                    n_boot=args.n_boot)
+            stats[f"diff_vs_{label}"] = diff
+            stats[f"p_vs_{label}"] = p
+            print(f"  Sharpe winner {sharpe_winner} vs {other}: "
+                  f"Sharpe difference {diff:+.3f}, "
+                  f"paired block bootstrap p = {p:.3f}")
+        if sharpe_winner == qlike_winner:
+            print(f"  QLIKE winner and Sharpe winner are the same model "
+                  f"({sharpe_winner}), so that comparison is vacuous here")
+        vm_tables[-1] = vm_tables[-1].assign(**stats)
 
     if vm_tables:
         pd.concat(vm_tables, ignore_index=True).to_csv(

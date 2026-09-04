@@ -361,12 +361,24 @@ def run_horizon(args, horizon: int) -> dict[str, pd.DataFrame]:
                                       "p_vs_har": "p_vs_base"})
     table_c.insert(0, "horizon", horizon)
 
-    rolling = rolling_model_confidence_set(
-        losses_a, window=args.mcs_window, step=args.refit, alpha=args.alpha,
-        n_boot=args.rolling_boot, seed=args.seed)
-    if not rolling.empty:
-        rolling = rolling.reset_index()
-        rolling.insert(0, "horizon", horizon)
+    # Two window lengths on purpose. Two years is the regime length the question
+    # is really about, but with this out-of-sample span it only yields about a
+    # dozen windows, all of them at the end of the sample. One year yields
+    # enough windows to see membership move, at the cost of a noisier MCS in
+    # each. Reporting one without the other would be choosing the answer.
+    rolling_parts = []
+    for window in args.mcs_window:
+        block = rolling_model_confidence_set(
+            losses_a, window=window, step=args.refit, alpha=args.alpha,
+            n_boot=args.rolling_boot, seed=args.seed)
+        if block.empty:
+            continue
+        block = block.reset_index()
+        block.insert(0, "window", window)
+        block.insert(0, "horizon", horizon)
+        rolling_parts.append(block)
+    rolling = (pd.concat(rolling_parts, ignore_index=True) if rolling_parts
+               else pd.DataFrame())
 
     forecasts = pd.DataFrame(structural).loc[test.index]
     forecasts.insert(0, "target", test["target"])
@@ -384,7 +396,8 @@ def main() -> int:
     parser.add_argument("--alpha", type=float, default=0.10)
     parser.add_argument("--n-boot", type=int, default=2000)
     parser.add_argument("--rolling-boot", type=int, default=500)
-    parser.add_argument("--mcs-window", type=int, default=504)
+    parser.add_argument("--mcs-window", type=int, nargs="+", default=[252, 504],
+                        help="rolling MCS window lengths, in observations")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--extra-lag", type=int, default=0,
                         help="extra trading days of publication lag on every feature")
