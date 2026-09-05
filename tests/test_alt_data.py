@@ -275,3 +275,22 @@ def test_a_missing_source_for_a_requested_block_is_still_an_error(tmp_path):
     (tmp_path / "features_gdelt.csv").unlink()
     with pytest.raises(FileNotFoundError):
         build_feature_panel(SESSIONS, data_dir=tmp_path, features=["gdelt_tone_mkt"])
+
+
+def test_ffill_limit_zero_disables_the_fill_entirely():
+    """A series with one observation per session must not be extended past its end."""
+    stamps = SESSIONS[:5]
+    source = pd.DataFrame({"x": [1.0, 2.0, 3.0, 4.0, 5.0]}, index=stamps)
+    out = align_to_sessions(source, SESSIONS, lag=0, ffill_limit=0)
+    assert out["x"].notna().sum() == 5
+    assert out["x"].iloc[5:].isna().all()
+
+
+def test_option_features_are_not_extended_past_their_coverage(tmp_path):
+    _write_panel_inputs(tmp_path, SESSIONS)
+    raw = pd.read_csv(tmp_path / "features_option_market.csv", parse_dates=["date"])
+    truncated = raw.iloc[:-10]
+    truncated.to_csv(tmp_path / "features_option_market.csv", index=False)
+    panel, _ = build_feature_panel(SESSIONS, data_dir=tmp_path,
+                                   features=["atm_ivar_30"])
+    assert panel["atm_ivar_30"].notna().sum() == len(truncated)
