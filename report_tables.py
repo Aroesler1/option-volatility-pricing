@@ -48,8 +48,12 @@ def markdown(frame: pd.DataFrame, headers: dict[str, str], digits=4) -> str:
     cols = [c for c in headers if c in frame.columns]
     lines = ["| " + " | ".join(headers[c] for c in cols) + " |",
              "|" + "|".join("---" for _ in cols) + "|"]
-    for _, row in frame.iterrows():
-        lines.append("| " + " | ".join(_fmt(row[c], digits) for c in cols) + " |")
+    # iterrows() builds a Series per row and upcasts mixed dtypes to a common
+    # one, which silently turns an integer horizon into 21.0000. Reading each
+    # column separately keeps its own dtype.
+    for i in range(len(frame)):
+        lines.append("| " + " | ".join(_fmt(frame[c].iloc[i], digits) for c in cols)
+                     + " |")
     return "\n".join(lines)
 
 
@@ -146,6 +150,8 @@ def swap_table(results: Path, tag: str) -> None:
 
 def shar_table(results: Path, tag: str) -> None:
     frame = pd.read_csv(results / f"altdata_shar_coefficients{tag}.csv")
+    # a horizon is a count of days, not a statistic; 21.0000 reads as a typo
+    frame["horizon"] = frame["horizon"].astype(int)
     headers = {"horizon": "horizon", "shar_b_pos": "b on RS+",
                "shar_b_neg": "b on RS-", "har_b_daily": "HAR b on RV",
                "corr_semivols": "corr(RS+, RS-)"}

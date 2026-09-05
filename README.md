@@ -144,49 +144,49 @@ Regenerate every table below with `python report_tables.py`.
 
 | model | QLIKE mean | QLIKE median | DM vs HAR | p | MCS p | in 90% MCS |
 |---|---|---|---|---|---|---|
-| combination | 0.1881 | 0.0794 | -4.5334 | 0.0000 | 1.0000 | yes |
-| har_x_lasso | 0.1894 | 0.0861 | -2.7884 | 0.0053 | 0.8450 | yes |
-| lstm_x | 0.1925 | 0.0795 | -1.6229 | 0.1046 | 0.8450 | yes |
-| hgb | 0.1935 | 0.0897 | -1.5481 | 0.1216 | 0.8450 | yes |
-| har_rv_iv | 0.1964 | 0.0800 | -3.0779 | 0.0021 | 0.0855 | no |
-| har | 0.2099 | 0.0840 |  |  | 0.0015 | no |
-| shar | 0.2107 | 0.0865 | 0.4336 | 0.6646 | 0.0015 | no |
-| lstm | 0.2181 | 0.0859 | 1.4672 | 0.1423 | 0.0060 | no |
-| persistence | 0.2791 | 0.1049 | 5.5314 | 0.0000 | 0.0000 | no |
+| combination | 0.1878 | 0.0801 | -4.6258 | 0.0000 | 1.0000 | yes |
+| har_x_lasso | 0.1884 | 0.0860 | -2.9155 | 0.0036 | 0.8980 | yes |
+| lstm_x | 0.1923 | 0.0758 | -1.6187 | 0.1055 | 0.8575 | yes |
+| hgb | 0.1928 | 0.0902 | -1.6395 | 0.1011 | 0.8575 | yes |
+| har_rv_iv | 0.1965 | 0.0803 | -3.1151 | 0.0018 | 0.1010 | yes |
+| har | 0.2102 | 0.0835 |  |  | 0.0015 | no |
+| shar | 0.2110 | 0.0862 | 0.3885 | 0.6976 | 0.0000 | no |
+| lstm | 0.2194 | 0.0802 | 1.4548 | 0.1457 | 0.0055 | no |
+| persistence | 0.2785 | 0.1043 | 5.4617 | 0.0000 | 0.0000 | no |
 
-MCS(90%) = {combination, har_x_lasso, lstm_x, hgb}
+MCS(90%) = {combination, har_x_lasso, lstm_x, hgb, har_rv_iv}
 
 #### Horizon 5 days
 
 | model | QLIKE mean | QLIKE median | DM vs HAR | p | MCS p | in 90% MCS |
 |---|---|---|---|---|---|---|
-| hgb | 0.1870 | 0.0609 | -1.2663 | 0.2054 | 1.0000 | yes |
-| har_x_lasso | 0.1872 | 0.0570 | -2.3660 | 0.0180 | 0.9825 | yes |
-| combination | 0.1937 | 0.0564 | -2.1454 | 0.0319 | 0.4835 | yes |
-| har_rv_iv | 0.2036 | 0.0575 | -0.4829 | 0.6291 | 0.4035 | yes |
-| har | 0.2081 | 0.0590 |  |  | 0.1350 | yes |
-| shar | 0.2090 | 0.0619 | 1.3770 | 0.1685 | 0.1275 | yes |
-| lstm_x | 0.2360 | 0.0600 | 1.3100 | 0.1902 | 0.1485 | yes |
-| lstm | 0.2548 | 0.0754 | 2.7960 | 0.0052 | 0.0125 | no |
-| persistence | 0.3509 | 0.0953 | 5.1046 | 0.0000 | 0.0000 | no |
+| har_x_lasso | 0.1872 | 0.0564 | -2.3671 | 0.0179 | 1.0000 | yes |
+| hgb | 0.1888 | 0.0603 | -1.1613 | 0.2455 | 0.8815 | yes |
+| combination | 0.1949 | 0.0596 | -1.9326 | 0.0533 | 0.5090 | yes |
+| har_rv_iv | 0.2032 | 0.0577 | -0.5102 | 0.6099 | 0.4010 | yes |
+| har | 0.2080 | 0.0596 |  |  | 0.1295 | yes |
+| shar | 0.2089 | 0.0624 | 1.3825 | 0.1668 | 0.1295 | yes |
+| lstm | 0.2401 | 0.0711 | 1.8879 | 0.0590 | 0.0850 | no |
+| lstm_x | 0.2488 | 0.0609 | 1.2243 | 0.2208 | 0.2540 | yes |
+| persistence | 0.3517 | 0.0954 | 5.1279 | 0.0000 | 0.0000 | no |
 
-MCS(90%) = {hgb, har_x_lasso, combination, har_rv_iv, har, shar, lstm_x}
+MCS(90%) = {har_x_lasso, hgb, combination, har_rv_iv, har, shar, lstm_x}
 
 #### Horizon 21 days
 
 | model | QLIKE mean | QLIKE median | DM vs HAR | p | MCS p | in 90% MCS |
 |---|---|---|---|---|---|---|
-| hgb | 0.2252 | 0.0577 | -0.8993 | 0.3685 | 1.0000 | yes |
-| combination | 0.2327 | 0.0875 | -1.4841 | 0.1378 | 0.6490 | yes |
-| har | 0.2456 | 0.1057 |  |  | 0.3730 | yes |
-| shar | 0.2457 | 0.1059 | 0.4057 | 0.6849 | 0.3730 | yes |
-| lstm | 0.2467 | 0.0859 | 0.0722 | 0.9424 | 0.4860 | yes |
-| har_x_lasso | 0.2468 | 0.0953 | 0.0914 | 0.9272 | 0.3730 | yes |
-| har_rv_iv | 0.2493 | 0.1092 | 0.8042 | 0.4213 | 0.3355 | yes |
-| lstm_x | 0.2925 | 0.0746 | 1.3247 | 0.1853 | 0.2475 | yes |
-| persistence | 0.5782 | 0.1220 | 3.6972 | 0.0002 | 0.0050 | no |
+| hgb | 0.2193 | 0.0571 | -1.0591 | 0.2895 | 1.0000 | yes |
+| combination | 0.2313 | 0.0857 | -1.5179 | 0.1290 | 0.4570 | yes |
+| har | 0.2453 | 0.1047 |  |  | 0.2850 | yes |
+| shar | 0.2454 | 0.1050 | 0.3468 | 0.7288 | 0.2850 | yes |
+| har_x_lasso | 0.2464 | 0.0950 | 0.0795 | 0.9367 | 0.2850 | yes |
+| har_rv_iv | 0.2490 | 0.1082 | 0.7917 | 0.4285 | 0.2850 | yes |
+| lstm | 0.2511 | 0.0885 | 0.3789 | 0.7048 | 0.2850 | yes |
+| lstm_x | 0.2783 | 0.0717 | 1.0503 | 0.2936 | 0.2715 | yes |
+| persistence | 0.5800 | 0.1216 | 3.6988 | 0.0002 | 0.0020 | no |
 
-MCS(90%) = {hgb, combination, har, shar, lstm, har_x_lasso, har_rv_iv, lstm_x}
+MCS(90%) = {hgb, combination, har, shar, har_x_lasso, har_rv_iv, lstm, lstm_x}
 
 <!-- END:MODELS -->
 
@@ -203,13 +203,13 @@ model's membership is stable or carried by one regime.
 | model | share of windows in the 90% MCS |
 |---|---|
 | har_x_lasso | 100% |
+| hgb | 100% |
 | combination | 100% |
 | lstm_x | 96% |
-| har_rv_iv | 91% |
-| hgb | 91% |
+| har_rv_iv | 87% |
 | har | 39% |
 | shar | 39% |
-| lstm | 35% |
+| lstm | 39% |
 | persistence | 22% |
 
 #### Horizon 1, 504-observation windows (11 windows)
@@ -219,8 +219,8 @@ model's membership is stable or carried by one regime.
 | har_x_lasso | 100% |
 | lstm_x | 100% |
 | combination | 100% |
-| har_rv_iv | 91% |
-| hgb | 55% |
+| hgb | 91% |
+| har_rv_iv | 73% |
 | persistence | 0% |
 | har | 0% |
 | shar | 0% |
@@ -233,9 +233,9 @@ model's membership is stable or carried by one regime.
 | har_x_lasso | 100% |
 | lstm_x | 100% |
 | combination | 100% |
+| lstm | 91% |
 | har_rv_iv | 87% |
-| hgb | 74% |
-| lstm | 61% |
+| hgb | 83% |
 | shar | 48% |
 | har | 43% |
 | persistence | 22% |
@@ -246,12 +246,12 @@ model's membership is stable or carried by one regime.
 |---|---|
 | har_rv_iv | 100% |
 | har_x_lasso | 100% |
-| hgb | 100% |
 | lstm_x | 100% |
 | combination | 100% |
+| hgb | 91% |
+| lstm | 91% |
 | har | 64% |
 | shar | 64% |
-| lstm | 64% |
 | persistence | 0% |
 
 #### Horizon 21, 252-observation windows (23 windows)
@@ -259,11 +259,11 @@ model's membership is stable or carried by one regime.
 | model | share of windows in the 90% MCS |
 |---|---|
 | hgb | 100% |
-| lstm_x | 70% |
-| har_x_lasso | 65% |
-| lstm | 65% |
-| combination | 65% |
+| lstm_x | 83% |
 | har_rv_iv | 61% |
+| har_x_lasso | 61% |
+| lstm | 61% |
+| combination | 61% |
 | har | 43% |
 | shar | 43% |
 | persistence | 0% |
@@ -276,10 +276,10 @@ model's membership is stable or carried by one regime.
 | lstm | 100% |
 | lstm_x | 100% |
 | combination | 100% |
-| har_rv_iv | 45% |
 | har_x_lasso | 45% |
 | har | 36% |
 | shar | 36% |
+| har_rv_iv | 36% |
 | persistence | 0% |
 
 <!-- END:ROLLING -->
@@ -297,55 +297,55 @@ it adds once the two cheap improvements are already in the model.
 
 | model | block | QLIKE mean | delta vs base | DM | p |
 |---|---|---|---|---|---|
-| atm_ivar_30 | option | 0.1964 | -0.0134 | -3.0779 | 0.0021 |
-| term_slope_30_91 | option | 0.2000 | -0.0098 | -1.7162 | 0.0861 |
-| atm_iv_30 | option | 0.2064 | -0.0035 | -0.4947 | 0.6208 |
-| epu_log | uncertainty | 0.2069 | -0.0030 | -1.4238 | 0.1545 |
-| is_payrolls | calendar | 0.2080 | -0.0019 | -1.1306 | 0.2582 |
-| is_fomc | calendar | 0.2094 | -0.0005 | -0.6976 | 0.4854 |
-| har | baseline | 0.2099 | 0.0000 |  |  |
-| emv_overall | uncertainty | 0.2100 | 0.0002 | 0.4566 | 0.6479 |
-| is_cpi | calendar | 0.2104 | 0.0006 | 0.5066 | 0.6124 |
-| vix_vol | option | 0.2111 | 0.0013 | 0.1644 | 0.8694 |
-| wiki_attention | attention | 0.2113 | 0.0014 | 0.6112 | 0.5410 |
-| spy_put_call | option | 0.2157 | 0.0059 | 3.4204 | 0.0006 |
-| skew_25d_30 | option | 0.2204 | 0.0105 | 3.2413 | 0.0012 |
+| atm_ivar_30 | option | 0.1965 | -0.0137 | -3.1151 | 0.0018 |
+| term_slope_30_91 | option | 0.2000 | -0.0102 | -1.7648 | 0.0776 |
+| atm_iv_30 | option | 0.2058 | -0.0044 | -0.6156 | 0.5382 |
+| epu_log | uncertainty | 0.2072 | -0.0030 | -1.4490 | 0.1473 |
+| is_payrolls | calendar | 0.2084 | -0.0018 | -1.0870 | 0.2770 |
+| is_fomc | calendar | 0.2097 | -0.0005 | -0.6324 | 0.5271 |
+| har | baseline | 0.2102 | 0.0000 |  |  |
+| emv_overall | uncertainty | 0.2104 | 0.0002 | 0.6677 | 0.5043 |
+| vix_vol | option | 0.2107 | 0.0005 | 0.0689 | 0.9451 |
+| is_cpi | calendar | 0.2108 | 0.0006 | 0.5202 | 0.6029 |
+| wiki_attention | attention | 0.2115 | 0.0013 | 0.5324 | 0.5944 |
+| spy_put_call | option | 0.2159 | 0.0057 | 3.3762 | 0.0007 |
+| skew_25d_30 | option | 0.2213 | 0.0111 | 3.3683 | 0.0008 |
 
 #### Horizon 5 days
 
 | model | block | QLIKE mean | delta vs base | DM | p |
 |---|---|---|---|---|---|
-| atm_ivar_30 | option | 0.2036 | -0.0045 | -0.4829 | 0.6291 |
-| term_slope_30_91 | option | 0.2043 | -0.0038 | -0.3802 | 0.7038 |
-| is_fomc | calendar | 0.2066 | -0.0016 | -1.5414 | 0.1232 |
-| epu_log | uncertainty | 0.2068 | -0.0013 | -0.5976 | 0.5501 |
-| is_payrolls | calendar | 0.2074 | -0.0007 | -2.6130 | 0.0090 |
-| is_cpi | calendar | 0.2078 | -0.0003 | -0.4923 | 0.6225 |
-| har | baseline | 0.2081 | 0.0000 |  |  |
-| emv_overall | uncertainty | 0.2081 | 0.0000 | 0.0310 | 0.9753 |
-| vix_vol | option | 0.2082 | 0.0001 | 0.0067 | 0.9946 |
-| wiki_attention | attention | 0.2087 | 0.0006 | 0.5952 | 0.5517 |
-| spy_put_call | option | 0.2096 | 0.0015 | 1.1816 | 0.2373 |
-| atm_iv_30 | option | 0.2101 | 0.0020 | 0.1838 | 0.8542 |
-| skew_25d_30 | option | 0.2211 | 0.0130 | 2.0283 | 0.0425 |
+| atm_ivar_30 | option | 0.2032 | -0.0047 | -0.5102 | 0.6099 |
+| term_slope_30_91 | option | 0.2038 | -0.0042 | -0.4160 | 0.6774 |
+| epu_log | uncertainty | 0.2063 | -0.0016 | -0.6796 | 0.4968 |
+| is_fomc | calendar | 0.2064 | -0.0016 | -1.5365 | 0.1244 |
+| is_payrolls | calendar | 0.2073 | -0.0007 | -2.5466 | 0.0109 |
+| vix_vol | option | 0.2076 | -0.0003 | -0.0415 | 0.9669 |
+| is_cpi | calendar | 0.2077 | -0.0003 | -0.4445 | 0.6567 |
+| har | baseline | 0.2080 | 0.0000 |  |  |
+| wiki_attention | attention | 0.2085 | 0.0006 | 0.5752 | 0.5651 |
+| emv_overall | uncertainty | 0.2086 | 0.0006 | 0.4822 | 0.6296 |
+| spy_put_call | option | 0.2096 | 0.0017 | 1.3093 | 0.1904 |
+| atm_iv_30 | option | 0.2096 | 0.0017 | 0.1556 | 0.8764 |
+| skew_25d_30 | option | 0.2212 | 0.0132 | 2.0543 | 0.0399 |
 
 #### Horizon 21 days
 
 | model | block | QLIKE mean | delta vs base | DM | p |
 |---|---|---|---|---|---|
-| emv_overall | uncertainty | 0.2435 | -0.0021 | -0.4374 | 0.6618 |
-| wiki_attention | attention | 0.2448 | -0.0008 | -0.9129 | 0.3613 |
-| is_payrolls | calendar | 0.2452 | -0.0004 | -1.3000 | 0.1936 |
-| har | baseline | 0.2456 | 0.0000 |  |  |
-| is_cpi | calendar | 0.2457 | 0.0001 | 1.3823 | 0.1669 |
-| is_fomc | calendar | 0.2459 | 0.0004 | 0.1747 | 0.8613 |
-| atm_ivar_30 | option | 0.2493 | 0.0037 | 0.8042 | 0.4213 |
-| vix_vol | option | 0.2506 | 0.0050 | 0.3191 | 0.7497 |
-| spy_put_call | option | 0.2511 | 0.0056 | 0.9488 | 0.3427 |
-| atm_iv_30 | option | 0.2515 | 0.0059 | 0.3629 | 0.7167 |
-| skew_25d_30 | option | 0.2546 | 0.0091 | 0.6208 | 0.5347 |
-| term_slope_30_91 | option | 0.2555 | 0.0099 | 0.9345 | 0.3500 |
-| epu_log | uncertainty | 0.2594 | 0.0138 | 2.6350 | 0.0084 |
+| emv_overall | uncertainty | 0.2435 | -0.0019 | -0.4086 | 0.6828 |
+| wiki_attention | attention | 0.2446 | -0.0007 | -0.8399 | 0.4010 |
+| is_payrolls | calendar | 0.2450 | -0.0003 | -1.2122 | 0.2254 |
+| har | baseline | 0.2453 | 0.0000 |  |  |
+| is_cpi | calendar | 0.2454 | 0.0001 | 1.2034 | 0.2288 |
+| is_fomc | calendar | 0.2456 | 0.0002 | 0.1233 | 0.9019 |
+| atm_ivar_30 | option | 0.2490 | 0.0036 | 0.7917 | 0.4285 |
+| vix_vol | option | 0.2501 | 0.0048 | 0.3038 | 0.7613 |
+| spy_put_call | option | 0.2511 | 0.0058 | 0.9640 | 0.3350 |
+| atm_iv_30 | option | 0.2513 | 0.0059 | 0.3614 | 0.7178 |
+| skew_25d_30 | option | 0.2545 | 0.0091 | 0.6166 | 0.5375 |
+| term_slope_30_91 | option | 0.2550 | 0.0096 | 0.9410 | 0.3467 |
+| epu_log | uncertainty | 0.2587 | 0.0133 | 2.6600 | 0.0078 |
 
 <!-- END:MARGINAL -->
 
@@ -355,52 +355,52 @@ it adds once the two cheap improvements are already in the model.
 
 | model | block | QLIKE mean | delta vs base | DM | p |
 |---|---|---|---|---|---|
-| term_slope_30_91 | option | 0.1920 | -0.0037 | -1.0427 | 0.2971 |
-| is_payrolls | calendar | 0.1949 | -0.0008 | -0.7327 | 0.4637 |
-| is_fomc | calendar | 0.1955 | -0.0002 | -0.3445 | 0.7304 |
-| skew_25d_30 | option | 0.1957 | -0.0001 | -0.3038 | 0.7613 |
-| emv_overall | uncertainty | 0.1957 | -0.0000 | -0.0393 | 0.9686 |
-| har_rs_iv | baseline | 0.1957 | 0.0000 |  |  |
-| is_cpi | calendar | 0.1963 | 0.0006 | 0.5142 | 0.6071 |
-| wiki_attention | attention | 0.1967 | 0.0009 | 0.3217 | 0.7477 |
-| epu_log | uncertainty | 0.1971 | 0.0014 | 2.2135 | 0.0269 |
-| spy_put_call | option | 0.2002 | 0.0045 | 3.0775 | 0.0021 |
-| vix_vol | option | 0.2007 | 0.0050 | 1.1344 | 0.2566 |
-| atm_iv_30 | option | 0.2017 | 0.0060 | 1.2359 | 0.2165 |
+| term_slope_30_91 | option | 0.1920 | -0.0039 | -1.0809 | 0.2797 |
+| is_payrolls | calendar | 0.1951 | -0.0008 | -0.7295 | 0.4657 |
+| is_fomc | calendar | 0.1957 | -0.0002 | -0.2783 | 0.7808 |
+| skew_25d_30 | option | 0.1958 | -0.0000 | -0.1717 | 0.8637 |
+| har_rs_iv | baseline | 0.1959 | 0.0000 |  |  |
+| emv_overall | uncertainty | 0.1959 | 0.0000 | 0.0477 | 0.9619 |
+| is_cpi | calendar | 0.1964 | 0.0006 | 0.5184 | 0.6042 |
+| wiki_attention | attention | 0.1966 | 0.0007 | 0.2504 | 0.8023 |
+| epu_log | uncertainty | 0.1973 | 0.0014 | 2.2507 | 0.0244 |
+| spy_put_call | option | 0.2002 | 0.0044 | 3.0325 | 0.0024 |
+| vix_vol | option | 0.2005 | 0.0046 | 1.0410 | 0.2979 |
+| atm_iv_30 | option | 0.2013 | 0.0054 | 1.1149 | 0.2649 |
 
 #### Horizon 5 days
 
 | model | block | QLIKE mean | delta vs base | DM | p |
 |---|---|---|---|---|---|
-| term_slope_30_91 | option | 0.2032 | -0.0012 | -0.1606 | 0.8724 |
-| is_fomc | calendar | 0.2033 | -0.0011 | -1.2052 | 0.2281 |
-| is_cpi | calendar | 0.2040 | -0.0004 | -1.0798 | 0.2802 |
-| vix_vol | option | 0.2042 | -0.0002 | -0.0290 | 0.9769 |
-| har_rs_iv | baseline | 0.2044 | 0.0000 |  |  |
-| is_payrolls | calendar | 0.2045 | 0.0001 | 0.5450 | 0.5858 |
-| wiki_attention | attention | 0.2047 | 0.0003 | 0.2140 | 0.8306 |
-| spy_put_call | option | 0.2054 | 0.0010 | 0.9470 | 0.3436 |
-| emv_overall | uncertainty | 0.2060 | 0.0016 | 1.7702 | 0.0767 |
-| skew_25d_30 | option | 0.2070 | 0.0026 | 1.4164 | 0.1567 |
-| atm_iv_30 | option | 0.2073 | 0.0029 | 0.3965 | 0.6917 |
-| epu_log | uncertainty | 0.2081 | 0.0037 | 2.8337 | 0.0046 |
+| term_slope_30_91 | option | 0.2027 | -0.0014 | -0.1818 | 0.8557 |
+| is_fomc | calendar | 0.2029 | -0.0011 | -1.2100 | 0.2263 |
+| vix_vol | option | 0.2037 | -0.0004 | -0.0649 | 0.9483 |
+| is_cpi | calendar | 0.2037 | -0.0004 | -1.0411 | 0.2979 |
+| har_rs_iv | baseline | 0.2041 | 0.0000 |  |  |
+| is_payrolls | calendar | 0.2041 | 0.0000 | 0.2725 | 0.7853 |
+| wiki_attention | attention | 0.2044 | 0.0003 | 0.2499 | 0.8026 |
+| spy_put_call | option | 0.2052 | 0.0011 | 1.0433 | 0.2968 |
+| emv_overall | uncertainty | 0.2060 | 0.0019 | 1.6545 | 0.0980 |
+| skew_25d_30 | option | 0.2068 | 0.0027 | 1.4396 | 0.1500 |
+| atm_iv_30 | option | 0.2068 | 0.0028 | 0.3774 | 0.7059 |
+| epu_log | uncertainty | 0.2074 | 0.0033 | 3.0013 | 0.0027 |
 
 #### Horizon 21 days
 
 | model | block | QLIKE mean | delta vs base | DM | p |
 |---|---|---|---|---|---|
-| wiki_attention | attention | 0.2482 | -0.0011 | -1.1581 | 0.2468 |
-| emv_overall | uncertainty | 0.2483 | -0.0010 | -0.2086 | 0.8348 |
-| is_payrolls | calendar | 0.2490 | -0.0003 | -1.2179 | 0.2233 |
-| har_rs_iv | baseline | 0.2493 | 0.0000 |  |  |
-| is_cpi | calendar | 0.2494 | 0.0001 | 2.1091 | 0.0349 |
-| is_fomc | calendar | 0.2497 | 0.0003 | 0.1698 | 0.8652 |
-| vix_vol | option | 0.2505 | 0.0012 | 0.1000 | 0.9203 |
-| atm_iv_30 | option | 0.2512 | 0.0019 | 0.1512 | 0.8798 |
-| spy_put_call | option | 0.2549 | 0.0056 | 0.9714 | 0.3314 |
-| skew_25d_30 | option | 0.2568 | 0.0075 | 0.6656 | 0.5056 |
-| term_slope_30_91 | option | 0.2603 | 0.0109 | 1.0370 | 0.2998 |
-| epu_log | uncertainty | 0.2665 | 0.0172 | 2.2379 | 0.0252 |
+| wiki_attention | attention | 0.2480 | -0.0010 | -1.0750 | 0.2824 |
+| emv_overall | uncertainty | 0.2481 | -0.0009 | -0.1794 | 0.8576 |
+| is_payrolls | calendar | 0.2487 | -0.0003 | -1.1643 | 0.2443 |
+| har_rs_iv | baseline | 0.2490 | 0.0000 |  |  |
+| is_cpi | calendar | 0.2491 | 0.0001 | 1.9136 | 0.0557 |
+| is_fomc | calendar | 0.2492 | 0.0002 | 0.1134 | 0.9097 |
+| vix_vol | option | 0.2500 | 0.0010 | 0.0855 | 0.9318 |
+| atm_iv_30 | option | 0.2510 | 0.0020 | 0.1598 | 0.8730 |
+| spy_put_call | option | 0.2549 | 0.0059 | 0.9839 | 0.3252 |
+| skew_25d_30 | option | 0.2568 | 0.0078 | 0.6793 | 0.4969 |
+| term_slope_30_91 | option | 0.2598 | 0.0108 | 1.0724 | 0.2835 |
+| epu_log | uncertainty | 0.2655 | 0.0165 | 2.2842 | 0.0224 |
 
 <!-- END:MARGINAL_RICH -->
 
@@ -414,7 +414,47 @@ strictly before them, which is knowable in real time.
 
 <!-- RESULTS:REGIME -->
 
-(not generated: results/altdata_regime_split_nonews.csv not found)
+#### Horizon 1 day (68 stressed of 723 days)
+
+| model | QLIKE calm | QLIKE stressed | calm vs HAR | stressed vs HAR |
+|---|---|---|---|---|
+| lstm_x | 0.1852 | 0.2615 | -0.0070 | -0.1228 |
+| hgb | 0.1825 | 0.2913 | -0.0096 | -0.0929 |
+| combination | 0.1739 | 0.3222 | -0.0182 | -0.0621 |
+| har_x_lasso | 0.1733 | 0.3342 | -0.0188 | -0.0501 |
+| persistence | 0.2711 | 0.3501 | 0.0789 | -0.0342 |
+| har_rv_iv | 0.1803 | 0.3530 | -0.0118 | -0.0312 |
+| shar | 0.1935 | 0.3790 | 0.0014 | -0.0053 |
+| har | 0.1921 | 0.3843 | 0.0000 | 0.0000 |
+| lstm | 0.1955 | 0.4498 | 0.0033 | 0.0655 |
+
+#### Horizon 5 days (68 stressed of 723 days)
+
+| model | QLIKE calm | QLIKE stressed | calm vs HAR | stressed vs HAR |
+|---|---|---|---|---|
+| hgb | 0.1482 | 0.5801 | -0.0088 | -0.1189 |
+| har_x_lasso | 0.1398 | 0.6429 | -0.0171 | -0.0561 |
+| persistence | 0.3205 | 0.6515 | 0.1635 | -0.0475 |
+| har | 0.1570 | 0.6990 | 0.0000 | 0.0000 |
+| shar | 0.1577 | 0.7018 | 0.0007 | 0.0027 |
+| combination | 0.1416 | 0.7083 | -0.0154 | 0.0093 |
+| har_rv_iv | 0.1500 | 0.7160 | -0.0070 | 0.0169 |
+| lstm | 0.1647 | 0.9669 | 0.0077 | 0.2678 |
+| lstm_x | 0.1618 | 1.0869 | 0.0048 | 0.3879 |
+
+#### Horizon 21 days (68 stressed of 723 days)
+
+| model | QLIKE calm | QLIKE stressed | calm vs HAR | stressed vs HAR |
+|---|---|---|---|---|
+| hgb | 0.2080 | 0.3274 | -0.0240 | -0.0463 |
+| combination | 0.2172 | 0.3667 | -0.0148 | -0.0069 |
+| har | 0.2320 | 0.3736 | 0.0000 | 0.0000 |
+| shar | 0.2321 | 0.3743 | 0.0001 | 0.0007 |
+| har_rv_iv | 0.2358 | 0.3754 | 0.0038 | 0.0017 |
+| har_x_lasso | 0.2321 | 0.3840 | 0.0001 | 0.0103 |
+| persistence | 0.5912 | 0.4725 | 0.3592 | 0.0989 |
+| lstm | 0.2268 | 0.4853 | -0.0052 | 0.1117 |
+| lstm_x | 0.2462 | 0.5877 | 0.0142 | 0.2141 |
 
 <!-- END:REGIME -->
 
@@ -422,7 +462,11 @@ strictly before them, which is knowable in real time.
 
 <!-- RESULTS:SHAR -->
 
-(not generated: results/altdata_shar_coefficients_nonews.csv not found)
+| horizon | b on RS+ | b on RS- | HAR b on RV | corr(RS+, RS-) |
+|---|---|---|---|---|
+| 1 | 0.1684 | 0.5703 | 0.5256 | 0.9187 |
+| 5 | 0.2222 | 0.4380 | 0.4624 | 0.9187 |
+| 21 | 0.1473 | 0.2687 | 0.2905 | 0.9187 |
 
 <!-- END:SHAR -->
 
@@ -477,52 +521,52 @@ below 8.0%, and the cap starts biting at 7.5%.
 
 | model | QLIKE | Sharpe | mean p.a. | vol p.a. | max drawdown | turnover p.a. |
 |---|---|---|---|---|---|---|
-| buy_and_hold |  | 1.4061 | 0.2330 | 0.1657 | -0.2023 |  |
-| lstm | 0.2181 | 1.3466 | 0.2725 | 0.2024 | -0.2550 | 25.7699 |
-| combination | 0.1881 | 1.3011 | 0.2610 | 0.2006 | -0.2420 | 32.6674 |
-| hgb | 0.1935 | 1.2922 | 0.2581 | 0.1997 | -0.2412 | 34.7041 |
-| har_rv_iv | 0.1964 | 1.2918 | 0.2630 | 0.2036 | -0.2455 | 36.1600 |
-| lstm_x | 0.1925 | 1.2838 | 0.2617 | 0.2039 | -0.2486 | 28.7988 |
-| har | 0.2099 | 1.2837 | 0.2585 | 0.2014 | -0.2392 | 39.5043 |
-| shar | 0.2107 | 1.2762 | 0.2562 | 0.2008 | -0.2375 | 41.8975 |
-| har_x_lasso | 0.1894 | 1.2580 | 0.2507 | 0.1993 | -0.2405 | 32.6814 |
-| persistence | 0.2791 | 1.2238 | 0.2507 | 0.2049 | -0.2412 | 61.3575 |
+| buy_and_hold |  | 1.3981 | 0.2316 | 0.1656 | -0.2023 |  |
+| lstm | 0.2194 | 1.3863 | 0.2795 | 0.2016 | -0.2401 | 25.6119 |
+| combination | 0.1878 | 1.3407 | 0.2691 | 0.2007 | -0.2376 | 32.5050 |
+| hgb | 0.1928 | 1.3396 | 0.2670 | 0.1993 | -0.2366 | 34.4612 |
+| lstm_x | 0.1923 | 1.3372 | 0.2746 | 0.2054 | -0.2455 | 28.8918 |
+| har_rv_iv | 0.1965 | 1.3244 | 0.2699 | 0.2038 | -0.2456 | 36.2135 |
+| har | 0.2102 | 1.3193 | 0.2660 | 0.2016 | -0.2392 | 39.5698 |
+| shar | 0.2110 | 1.3122 | 0.2638 | 0.2011 | -0.2376 | 41.9423 |
+| har_x_lasso | 0.1884 | 1.2887 | 0.2568 | 0.1993 | -0.2404 | 32.6669 |
+| persistence | 0.2785 | 1.2591 | 0.2583 | 0.2051 | -0.2412 | 61.4027 |
 
-QLIKE winner combination, Sharpe winner lstm; Spearman(QLIKE, Sharpe) = -0.233 (p = 0.546)
+QLIKE winner combination, Sharpe winner lstm; Spearman(QLIKE, Sharpe) = -0.267 (p = 0.488)
 
 #### Horizon 5
 
 | model | QLIKE | Sharpe | mean p.a. | vol p.a. | max drawdown | turnover p.a. |
 |---|---|---|---|---|---|---|
-| buy_and_hold |  | 1.4061 | 0.2330 | 0.1657 | -0.2023 |  |
-| lstm_x | 0.2360 | 1.3554 | 0.2720 | 0.2007 | -0.2570 | 16.1290 |
-| har_x_lasso | 0.1872 | 1.3134 | 0.2516 | 0.1916 | -0.2296 | 29.7655 |
-| combination | 0.1937 | 1.3062 | 0.2512 | 0.1923 | -0.2357 | 26.4603 |
-| har_rv_iv | 0.2036 | 1.2889 | 0.2503 | 0.1942 | -0.2402 | 32.3559 |
-| lstm | 0.2548 | 1.2845 | 0.2512 | 0.1955 | -0.2544 | 14.5390 |
-| har | 0.2081 | 1.2704 | 0.2449 | 0.1927 | -0.2357 | 37.4821 |
-| shar | 0.2090 | 1.2643 | 0.2434 | 0.1925 | -0.2352 | 38.3345 |
-| hgb | 0.1870 | 1.2392 | 0.2382 | 0.1922 | -0.2365 | 31.1827 |
-| persistence | 0.3509 | 1.2238 | 0.2507 | 0.2049 | -0.2412 | 61.3575 |
+| buy_and_hold |  | 1.3981 | 0.2316 | 0.1656 | -0.2023 |  |
+| lstm_x | 0.2488 | 1.3957 | 0.2824 | 0.2023 | -0.2440 | 16.6274 |
+| har_x_lasso | 0.1872 | 1.3453 | 0.2579 | 0.1917 | -0.2296 | 29.6729 |
+| combination | 0.1949 | 1.3291 | 0.2561 | 0.1927 | -0.2359 | 26.8885 |
+| har_rv_iv | 0.2032 | 1.3250 | 0.2575 | 0.1943 | -0.2397 | 32.4668 |
+| lstm | 0.2401 | 1.3144 | 0.2566 | 0.1952 | -0.2534 | 15.0720 |
+| har | 0.2080 | 1.3103 | 0.2529 | 0.1930 | -0.2357 | 37.6120 |
+| shar | 0.2089 | 1.3041 | 0.2514 | 0.1928 | -0.2352 | 38.4433 |
+| hgb | 0.1888 | 1.2755 | 0.2446 | 0.1918 | -0.2331 | 31.0206 |
+| persistence | 0.3517 | 1.2591 | 0.2583 | 0.2051 | -0.2412 | 61.4027 |
 
-QLIKE winner hgb, Sharpe winner lstm_x; Spearman(QLIKE, Sharpe) = -0.200 (p = 0.606)
+QLIKE winner har_x_lasso, Sharpe winner lstm_x; Spearman(QLIKE, Sharpe) = -0.233 (p = 0.546)
 
 #### Horizon 21
 
 | model | QLIKE | Sharpe | mean p.a. | vol p.a. | max drawdown | turnover p.a. |
 |---|---|---|---|---|---|---|
-| buy_and_hold |  | 1.4061 | 0.2330 | 0.1657 | -0.2023 |  |
-| hgb | 0.2252 | 1.3977 | 0.2609 | 0.1866 | -0.2138 | 21.4165 |
-| har_x_lasso | 0.2468 | 1.3659 | 0.2477 | 0.1813 | -0.2168 | 24.3235 |
-| lstm | 0.2467 | 1.3597 | 0.2584 | 0.1900 | -0.2363 | 9.4034 |
-| combination | 0.2327 | 1.3556 | 0.2462 | 0.1816 | -0.2181 | 16.7193 |
-| har_rv_iv | 0.2493 | 1.3373 | 0.2393 | 0.1790 | -0.2211 | 23.2518 |
-| har | 0.2456 | 1.3341 | 0.2384 | 0.1787 | -0.2215 | 24.6169 |
-| shar | 0.2457 | 1.3304 | 0.2379 | 0.1788 | -0.2214 | 24.3990 |
-| lstm_x | 0.2925 | 1.2612 | 0.2507 | 0.1988 | -0.2498 | 10.5339 |
-| persistence | 0.5782 | 1.2238 | 0.2507 | 0.2049 | -0.2412 | 61.3575 |
+| hgb | 0.2193 | 1.4505 | 0.2731 | 0.1883 | -0.2088 | 21.8098 |
+| har_x_lasso | 0.2464 | 1.4053 | 0.2554 | 0.1818 | -0.2169 | 24.0653 |
+| combination | 0.2313 | 1.4014 | 0.2540 | 0.1812 | -0.2185 | 16.6249 |
+| buy_and_hold |  | 1.3981 | 0.2316 | 0.1656 | -0.2023 |  |
+| lstm | 0.2511 | 1.3820 | 0.2565 | 0.1856 | -0.2347 | 8.9052 |
+| har_rv_iv | 0.2490 | 1.3810 | 0.2474 | 0.1792 | -0.2208 | 23.2798 |
+| har | 0.2453 | 1.3774 | 0.2464 | 0.1789 | -0.2212 | 24.6481 |
+| shar | 0.2454 | 1.3731 | 0.2459 | 0.1791 | -0.2212 | 24.4055 |
+| lstm_x | 0.2783 | 1.3396 | 0.2631 | 0.1964 | -0.2442 | 10.5354 |
+| persistence | 0.5800 | 1.2591 | 0.2583 | 0.2051 | -0.2412 | 61.4027 |
 
-QLIKE winner hgb, Sharpe winner hgb; Spearman(QLIKE, Sharpe) = -0.617 (p = 0.077)
+QLIKE winner hgb, Sharpe winner hgb; Spearman(QLIKE, Sharpe) = -0.683 (p = 0.042)
 
 <!-- END:VOLMANAGED -->
 
@@ -556,32 +600,32 @@ are what decides whether any of the others had a chance.
 
 | model | Sharpe | mean p.a. | max drawdown | worst month | trade hit rate | turnover p.a. | trades |
 |---|---|---|---|---|---|---|---|
-| hgb | -0.2007 | -0.1048 | -0.9578 | -0.2584 | 0.4424 | 5.4848 | 330 |
-| har_rv_iv | -0.5523 | -0.2396 | -0.9987 | -0.3065 | 0.4198 | 4.8698 | 293 |
-| combination | -0.5540 | -0.2868 | -1.0374 | -0.4034 | 0.4169 | 5.1025 | 307 |
-| shar | -0.5898 | -0.2526 | -0.9801 | -0.3020 | 0.4209 | 4.9363 | 297 |
-| har | -0.5982 | -0.2557 | -0.9765 | -0.3049 | 0.4141 | 4.9363 | 297 |
-| persistence | -0.6820 | -0.2417 | -0.7928 | -0.1515 | 0.4455 | 5.4848 | 330 |
-| always_short | -0.6922 | -0.6373 | -3.3234 | -1.2436 | 0.5298 | 11.9174 | 721 |
-| lstm | -0.6933 | -0.3361 | -1.1611 | -0.5777 | 0.4416 | 5.2687 | 317 |
-| har_x_lasso | -0.7893 | -0.4367 | -1.3979 | -0.4875 | 0.3842 | 5.6676 | 341 |
-| lstm_x | -1.1795 | -0.6753 | -2.0221 | -0.6031 | 0.3578 | 6.7812 | 408 |
-| always_long | -1.2071 | -1.0733 | -3.7604 | -0.4191 | 0.2372 | 11.9174 | 721 |
+| hgb | -0.2520 | -0.1323 | -0.9353 | -0.2582 | 0.4392 | 5.5934 | 337 |
+| combination | -0.5538 | -0.2895 | -1.0532 | -0.4031 | 0.4156 | 5.3112 | 320 |
+| har_rv_iv | -0.5979 | -0.2584 | -1.0064 | -0.3065 | 0.4116 | 4.8797 | 294 |
+| persistence | -0.6163 | -0.2184 | -0.7887 | -0.1515 | 0.4451 | 5.4440 | 328 |
+| shar | -0.6175 | -0.2642 | -0.9912 | -0.3020 | 0.4128 | 4.9461 | 298 |
+| har | -0.6409 | -0.2736 | -1.0219 | -0.3049 | 0.4086 | 4.9959 | 301 |
+| always_short | -0.6923 | -0.6390 | -3.3234 | -1.2436 | 0.5305 | 11.9834 | 722 |
+| lstm | -0.7462 | -0.3822 | -1.2006 | -0.5653 | 0.4286 | 5.8091 | 350 |
+| har_x_lasso | -0.8268 | -0.4697 | -1.4759 | -0.4875 | 0.3707 | 5.7759 | 348 |
+| lstm_x | -1.1725 | -0.6689 | -2.0119 | -0.6031 | 0.3780 | 6.9378 | 418 |
+| always_long | -1.2112 | -1.0796 | -3.7604 | -0.4191 | 0.2368 | 11.9834 | 722 |
 
 #### long_only
 
 | model | Sharpe | mean p.a. | max drawdown | worst month | trade hit rate | turnover p.a. | trades |
 |---|---|---|---|---|---|---|---|
-| hgb | -0.3037 | -0.1436 | -0.9679 | -0.2584 | 0.3766 | 3.9723 | 239 |
-| combination | -0.4631 | -0.2027 | -1.0382 | -0.2441 | 0.3430 | 3.4404 | 207 |
-| har_rv_iv | -0.5905 | -0.2055 | -0.9384 | -0.2354 | 0.3187 | 3.0249 | 182 |
-| lstm | -0.6283 | -0.2237 | -0.8728 | -0.2556 | 0.3298 | 3.1247 | 188 |
-| shar | -0.6453 | -0.2207 | -0.9372 | -0.2354 | 0.3226 | 3.0914 | 186 |
-| har | -0.6560 | -0.2238 | -0.9335 | -0.2269 | 0.3118 | 3.0914 | 186 |
-| har_x_lasso | -0.6795 | -0.3144 | -1.2518 | -0.2803 | 0.3149 | 3.9058 | 235 |
-| persistence | -0.7736 | -0.2370 | -0.8959 | -0.1515 | 0.3061 | 3.2576 | 196 |
-| lstm_x | -1.1003 | -0.5280 | -1.5493 | -0.4129 | 0.2473 | 4.7036 | 283 |
-| always_long | -1.2071 | -1.0733 | -3.7604 | -0.4191 | 0.2372 | 11.9174 | 721 |
+| hgb | -0.3559 | -0.1696 | -0.9559 | -0.2582 | 0.3765 | 4.0996 | 247 |
+| combination | -0.4723 | -0.2116 | -1.0540 | -0.2523 | 0.3423 | 3.6846 | 222 |
+| har_rv_iv | -0.6329 | -0.2216 | -0.9853 | -0.2354 | 0.3155 | 3.1037 | 187 |
+| lstm | -0.6608 | -0.2794 | -1.0758 | -0.2803 | 0.3304 | 3.8174 | 230 |
+| shar | -0.6684 | -0.2308 | -0.9668 | -0.2354 | 0.3158 | 3.1535 | 190 |
+| har | -0.6904 | -0.2400 | -0.9746 | -0.2354 | 0.3093 | 3.2199 | 194 |
+| har_x_lasso | -0.7062 | -0.3394 | -1.3183 | -0.2859 | 0.3020 | 4.0664 | 245 |
+| persistence | -0.7731 | -0.2366 | -0.8959 | -0.1515 | 0.3061 | 3.2531 | 196 |
+| lstm_x | -1.1125 | -0.5285 | -1.5541 | -0.4191 | 0.2702 | 4.7303 | 285 |
+| always_long | -1.2112 | -1.0796 | -3.7604 | -0.4191 | 0.2368 | 11.9834 | 722 |
 
 <!-- END:STRADDLES -->
 
@@ -595,15 +639,15 @@ cost of expressing them.
 
 <!-- RESULTS:SWAP -->
 
-n_overlapping                                  726
-mean_variance_points                     -0.018615
-mean_vol_points_equivalent               -0.136436
-nw_tstat_overlapping                     -7.095157
+n_overlapping                                  723
+mean_variance_points                     -0.018676
+mean_vol_points_equivalent               -0.136662
+nw_tstat_overlapping                     -7.048364
 n_non_overlapping                               35
-mean_non_overlapping                     -0.017756
-tstat_non_overlapping                    -4.043843
-sharpe_annualised                        -2.367832
-share_positive                            0.050964
+mean_non_overlapping                     -0.018232
+tstat_non_overlapping                    -4.272333
+sharpe_annualised                        -2.501622
+share_positive                            0.051176
 worst_observation                        -0.208197
 model                       long_variance_swap_vix
 
