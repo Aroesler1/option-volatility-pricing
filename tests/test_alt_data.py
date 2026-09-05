@@ -253,3 +253,25 @@ def test_xlsx_reader_returns_strings_and_numbers_in_place():
     assert parsed[0] == ["Year", "Month", "Overall EMV Tracker"]
     assert [float(v) for v in parsed[1]] == [1985.0, 1.0, 11.3]
     assert len(parsed) == 3
+
+
+def test_only_the_requested_blocks_are_read_from_disk(tmp_path):
+    """Asking for option features must not require the GDELT file to exist.
+
+    The news pull takes about an hour to build its file; the rest of the study
+    should not be blocked on it, and a missing source for a block nobody asked
+    for is not an error.
+    """
+    _write_panel_inputs(tmp_path, SESSIONS)
+    (tmp_path / "features_gdelt.csv").unlink()
+    wanted = ["atm_ivar_30", "wiki_attention", "epu_log", "is_fomc"]
+    panel, report = build_feature_panel(SESSIONS, data_dir=tmp_path, features=wanted)
+    assert list(panel.columns[:len(wanted)]) == wanted
+    assert report.first_complete is not None
+
+
+def test_a_missing_source_for_a_requested_block_is_still_an_error(tmp_path):
+    _write_panel_inputs(tmp_path, SESSIONS)
+    (tmp_path / "features_gdelt.csv").unlink()
+    with pytest.raises(FileNotFoundError):
+        build_feature_panel(SESSIONS, data_dir=tmp_path, features=["gdelt_tone_mkt"])
