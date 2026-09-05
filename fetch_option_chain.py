@@ -22,8 +22,12 @@ LICENCE. This writes option-level rows, which are licensed and must not be
 committed. The output goes to a gitignored parquet; only the daily P&L series
 derived from it is published.
 
+The WRDS connection goes through `fetch_wrds_features.connect`, so the Duo
+guard applies here too: WRDS_DUO_READY=1 must be set for the run, one attempt is
+allowed, and a refusal is never retried.
+
 Usage:
-    WRDS_USERNAME=yourlogin python fetch_option_chain.py
+    WRDS_DUO_READY=1 WRDS_USERNAME=yourlogin python fetch_option_chain.py
 """
 from __future__ import annotations
 

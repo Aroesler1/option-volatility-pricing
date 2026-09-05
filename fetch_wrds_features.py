@@ -32,8 +32,12 @@ CSV is the only thing committed.
 Credentials come from `~/.pgpass`; set WRDS_USERNAME to your WRDS login. Nothing
 in this file contains a secret.
 
+WRDS is behind Duo, so `connect` refuses to do anything unless WRDS_DUO_READY=1
+is set for that run, allows exactly one attempt per invocation, and never
+retries a refusal. See its docstring for why.
+
 Usage:
-    WRDS_USERNAME=yourlogin python fetch_wrds_features.py
+    WRDS_DUO_READY=1 WRDS_USERNAME=yourlogin python fetch_wrds_features.py
 """
 from __future__ import annotations
 
@@ -51,12 +55,63 @@ WRDS_DB = "wrds"
 SPY_SECID = 109820
 
 
+class WRDSGuardError(RuntimeError):
+    """A refusal to open a WRDS connection. Never caught and retried anywhere."""
+
+
+DUO_ENV = "WRDS_DUO_READY"
+_connection_attempts = 0
+
+
 def connect(username: str | None = None):
+    """Open the single WRDS connection this process is allowed, or fail closed.
+
+    WRDS sits behind Duo two-factor. A script that reconnects, or retries after
+    a refusal, turns one declined push into a burst of them, and a burst of
+    declined pushes is what gets an account locked out. So the rules here are
+    deliberately unforgiving:
+
+    1. Nothing connects unless the operator has set WRDS_DUO_READY=1 for that
+       run. That variable means a human is at the device and expecting a push.
+       It is not stored anywhere and is not defaulted.
+    2. One attempt per process. The counter is incremented BEFORE the attempt,
+       so a failure still consumes it. Anything that wants a second connection
+       has to be a second invocation.
+    3. An authentication or connection failure raises `WRDSGuardError` and is
+       never retried. The caller is told what happened and stops.
+
+    The cost of the guard is having to re-run a script. The cost of not having
+    it is a locked WRDS account and a support ticket.
+    """
+    global _connection_attempts
+
+    if os.environ.get(DUO_ENV) != "1":
+        raise WRDSGuardError(
+            f"refusing to contact WRDS: {DUO_ENV} is not set to 1. WRDS requires a "
+            f"Duo push, so set {DUO_ENV}=1 only when you are at the device and "
+            f"ready to approve one, for that single run.")
+
     user = username or os.environ.get("WRDS_USERNAME") or os.environ.get("PGUSER")
     if not user:
-        raise SystemExit("set WRDS_USERNAME (password is read from ~/.pgpass)")
-    return psycopg2.connect(host=WRDS_HOST, port=WRDS_PORT, dbname=WRDS_DB,
-                            user=user, sslmode="require", connect_timeout=60)
+        raise WRDSGuardError(
+            "refusing to contact WRDS: set WRDS_USERNAME (the password is read "
+            "from ~/.pgpass, never from this repository)")
+
+    if _connection_attempts:
+        raise WRDSGuardError(
+            "refusing to contact WRDS: this process has already attempted a "
+            "connection. One attempt per invocation, whether or not it "
+            "succeeded. Run the script again rather than reconnecting.")
+    _connection_attempts += 1
+
+    try:
+        return psycopg2.connect(host=WRDS_HOST, port=WRDS_PORT, dbname=WRDS_DB,
+                                user=user, sslmode="require", connect_timeout=60)
+    except psycopg2.Error as exc:
+        raise WRDSGuardError(
+            f"WRDS refused the connection and it will NOT be retried: {exc}. "
+            f"Check that the Duo push was approved and that ~/.pgpass holds a "
+            f"current password, then run the script again.") from exc
 
 
 def _read(con, sql: str, params: tuple) -> pd.DataFrame:
