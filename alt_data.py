@@ -220,25 +220,43 @@ def build_feature_panel(sessions: pd.DatetimeIndex, data_dir: Path = DATA_DIR,
     without editing anything.
     """
     sessions = pd.DatetimeIndex(sessions).sort_values()
-    option = align_to_sessions(load_option_block(data_dir), sessions, lag=0 + extra_lag)
-    news = align_to_sessions(load_news_block(data_dir), sessions, lag=1 + extra_lag)
-    attention = align_to_sessions(load_attention_block(data_dir), sessions,
-                                  lag=1 + extra_lag)
-    unc_daily, unc_monthly = load_uncertainty_block(data_dir)
-    epu = align_to_sessions(unc_daily, sessions, lag=1 + extra_lag)
-    # EMV measures a whole calendar month, so the earliest date it can be known
-    # is the first session of the following month. Stamping it on the first of
-    # the month it measures and lagging by one month does exactly that; the
-    # forward fill is unlimited because a monthly series IS a step function.
-    emv = unc_monthly.copy()
-    emv.index = emv.index + pd.offsets.MonthBegin(1)
-    emv = align_to_sessions(emv, sessions, lag=0 + extra_lag, ffill_limit=None)
-    calendar = load_calendar_block(sessions, data_dir)
-    if extra_lag:
-        calendar = calendar.shift(extra_lag)
+    wanted = list(features) if features is not None else list(ALL_FEATURES)
+    unknown = [c for c in wanted if c not in FEATURE_BLOCK]
+    if unknown:
+        raise KeyError(f"features not built: {unknown}")
+    # Only the blocks a caller actually asked for are read. That is not just
+    # tidiness: the GDELT pull takes about an hour to build its file, and
+    # running the rest of the study while it finishes should not require the
+    # file to exist.
+    needed = {FEATURE_BLOCK[c] for c in wanted}
+    parts = []
 
-    panel = pd.concat([option, news, attention, epu, emv, calendar], axis=1)
-    wanted = list(features) if features is not None else ALL_FEATURES
+    if "option" in needed:
+        parts.append(align_to_sessions(load_option_block(data_dir), sessions,
+                                       lag=0 + extra_lag))
+    if "news" in needed:
+        parts.append(align_to_sessions(load_news_block(data_dir), sessions,
+                                       lag=1 + extra_lag))
+    if "attention" in needed:
+        parts.append(align_to_sessions(load_attention_block(data_dir), sessions,
+                                       lag=1 + extra_lag))
+    if "uncertainty" in needed:
+        unc_daily, unc_monthly = load_uncertainty_block(data_dir)
+        parts.append(align_to_sessions(unc_daily, sessions, lag=1 + extra_lag))
+        # EMV measures a whole calendar month, so the earliest date it can be
+        # known is the first session of the following month. Stamping it on the
+        # first of the month it measures and lagging by one month does exactly
+        # that; the forward fill is unlimited because a monthly series IS a
+        # step function.
+        emv = unc_monthly.copy()
+        emv.index = emv.index + pd.offsets.MonthBegin(1)
+        parts.append(align_to_sessions(emv, sessions, lag=0 + extra_lag,
+                                       ffill_limit=None))
+    if "calendar" in needed:
+        calendar = load_calendar_block(sessions, data_dir)
+        parts.append(calendar.shift(extra_lag) if extra_lag else calendar)
+
+    panel = pd.concat(parts, axis=1)
     missing = [c for c in wanted if c not in panel.columns]
     if missing:
         raise KeyError(f"features not built: {missing}")

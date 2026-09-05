@@ -54,6 +54,8 @@ from pathlib import Path
 
 warnings.filterwarnings("ignore")
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 
@@ -240,7 +242,8 @@ def make_hgb_fp(cols, val_tail: int = 126):
 
 
 def build_frame(intraday_path: Path, horizon: int, data_dir: Path,
-                extra_lag: int) -> tuple[pd.DataFrame, list[str], str]:
+                extra_lag: int, features: Optional[list] = None
+                ) -> tuple[pd.DataFrame, list[str], str]:
     intra = pd.read_csv(intraday_path, parse_dates=["date"]).set_index("date").sort_index()
     for col in ("rs_pos_var", "rs_neg_var"):
         if col not in intra.columns:
@@ -248,7 +251,9 @@ def build_frame(intraday_path: Path, horizon: int, data_dir: Path,
                 f"{intraday_path} has no `{col}`; rerun build_intraday_rv.py")
 
     rv = intra["rv5m"]
-    panel, report = build_feature_panel(rv.index, data_dir=data_dir, extra_lag=extra_lag)
+    wanted = list(features) if features else list(ALL_FEATURES)
+    panel, report = build_feature_panel(rv.index, data_dir=data_dir,
+                                        extra_lag=extra_lag, features=wanted)
     base = pd.DataFrame({
         "rv": rv,
         "rv_w": rv.rolling(5).mean(),
@@ -259,8 +264,8 @@ def build_frame(intraday_path: Path, horizon: int, data_dir: Path,
         "rs_neg_vol": semivol(intra["rs_neg_var"]),
         "target": forward_vol_from_variance(intra["rv5m_var"], horizon),
     })
-    frame = pd.concat([base, panel[ALL_FEATURES]], axis=1).dropna()
-    return frame, list(ALL_FEATURES), report.to_string()
+    frame = pd.concat([base, panel[wanted]], axis=1).dropna()
+    return frame, wanted, report.to_string()
 
 
 # ---------------------------------------------------------------------------
@@ -300,7 +305,7 @@ def attach_mcs(table: pd.DataFrame, losses: pd.DataFrame, alpha: float,
 
 def run_horizon(args, horizon: int) -> dict[str, pd.DataFrame]:
     frame, features, coverage = build_frame(args.intraday, horizon, args.data_dir,
-                                            args.extra_lag)
+                                            args.extra_lag, args.features)
     test_start = int(len(frame) * (1.0 - args.test_frac))
     test = frame.iloc[test_start:]
     purge = horizon
@@ -399,6 +404,9 @@ def main() -> int:
     parser.add_argument("--mcs-window", type=int, nargs="+", default=[252, 504],
                         help="rolling MCS window lengths, in observations")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--features", nargs="+", default=None,
+                        help="restrict the panel to these features "
+                             "(default: every feature in alt_data.ALL_FEATURES)")
     parser.add_argument("--extra-lag", type=int, default=0,
                         help="extra trading days of publication lag on every feature")
     parser.add_argument("--out-dir", type=Path, default=Path("results"))
