@@ -348,3 +348,20 @@ def test_variance_swap_summary_annualises_by_periods_per_year_not_by_days():
 
 def test_variance_swap_summary_is_empty_for_an_empty_payoff():
     assert variance_swap_summary(pd.Series(dtype=float)) == {}
+
+
+def test_rank_agreement_is_negative_when_better_forecasts_earn_more():
+    from run_option_pnl import rank_agreement
+
+    qlike = pd.Series([0.10, 0.20, 0.30, 0.40, 0.50])
+    sharpe = pd.Series([1.0, 0.8, 0.6, 0.4, 0.2])
+    rho, p = rank_agreement(qlike, sharpe)
+    assert rho == pytest.approx(-1.0)
+    assert p < 0.05
+
+
+def test_rank_agreement_is_nan_when_there_are_too_few_models():
+    from run_option_pnl import rank_agreement
+
+    rho, p = rank_agreement(pd.Series([0.1, 0.2]), pd.Series([1.0, 0.5]))
+    assert np.isnan(rho) and np.isnan(p)
