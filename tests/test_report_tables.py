@@ -90,3 +90,11 @@ def test_a_marker_with_no_section_is_left_alone(tmp_path):
     assert written == 1
     assert "<!-- RESULTS:SWAP -->" in doc.read_text()
     assert "<!-- END:SWAP -->" not in doc.read_text()
+
+
+def test_an_integer_column_does_not_pick_up_decimals_from_its_neighbours():
+    """iterrows() upcasts a mixed-dtype row and turns horizon 21 into 21.0000."""
+    frame = pd.DataFrame({"horizon": [1, 5, 21], "coef": [0.5, 0.4, 0.3]})
+    out = markdown(frame, {"horizon": "horizon", "coef": "coef"})
+    assert "| 21 | 0.3000 |" in out
+    assert "21.0000" not in out
