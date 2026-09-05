@@ -190,13 +190,25 @@ def straddle_trade(chain: pd.DataFrame, underlying: pd.Series, entry_date: pd.Ti
     wide_delta = legs.pivot_table(index="date", columns="cp_flag", values="delta")
     if not {"C", "P"}.issubset(wide_bid.columns):
         return None
-    wide_bid, wide_ask, wide_delta = (w.dropna(how="any") for w in
-                                      (wide_bid, wide_ask, wide_delta))
-    common = wide_bid.index.intersection(wide_ask.index).intersection(wide_delta.index)
+    # A quote on both legs is what the trade needs; a delta is what the HEDGE
+    # needs, and OptionMetrics leaves delta blank on about 7% of otherwise
+    # perfectly quoted days. Dropping those days was throwing away valid price
+    # information and, worse, ending trades early: a 21-day hold that lost its
+    # last two deltas exited two days into the past, at a different price, which
+    # is the single largest term in the P&L. Deltas are carried instead.
+    quotes_ok = wide_bid.notna().all(axis=1) & wide_ask.notna().all(axis=1)
+    common = wide_bid.index[quotes_ok]
     if len(common) < 2:
         return None
     wide_bid, wide_ask = wide_bid.loc[common], wide_ask.loc[common]
-    wide_delta = wide_delta.loc[common]
+    # pivot_table drops a column entirely when every value in it is missing, so
+    # "no delta at all" shows up as a missing column rather than as NaNs
+    has_delta = {"C", "P"}.issubset(wide_delta.columns)
+    if has_delta:
+        wide_delta = wide_delta.reindex(common).ffill().bfill()
+        has_delta = not wide_delta.isna().any().any()
+    if config.delta_hedge and not has_delta:
+        return None                # no delta anywhere: this one cannot be hedged
 
     mid = (wide_bid + wide_ask) / 2.0
     spread = wide_ask - wide_bid

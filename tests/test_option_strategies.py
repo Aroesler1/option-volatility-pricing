@@ -365,3 +365,37 @@ def test_rank_agreement_is_nan_when_there_are_too_few_models():
 
     rho, p = rank_agreement(pd.Series([0.1, 0.2]), pd.Series([1.0, 0.5]))
     assert np.isnan(rho) and np.isnan(p)
+
+
+def test_a_missing_delta_mid_trade_does_not_shorten_the_hold():
+    """OptionMetrics leaves delta blank on days that are otherwise fully quoted.
+
+    Dropping those days ended trades early and at the wrong price. The trade
+    must run its full length and mark at the real quotes; only the hedge needs
+    the delta, and a carried-forward one is the right stand-in.
+    """
+    n = len(DATES)
+    call = np.linspace(5.0, 9.0, n)
+    put = np.full(n, 5.0)
+    chain = synthetic_chain(call, put)
+    gap = chain["date"].isin(DATES[[4, 9]]) & (chain["cp_flag"] == "C")
+    chain.loc[gap, "delta"] = np.nan
+    under = pd.Series(100.0, index=DATES)
+    config = StraddleConfig(hold_days=10, spread_fraction=0.0, delta_hedge=True,
+                            hedge_cost_bps=0.0)
+    path = straddle_trade(chain, under, DATES[0], EXDATE, STRIKE, +1, config)
+    assert len(path) == 11                      # entry plus 10 held days
+    assert path.index[-1] == DATES[10]
+    premium = call[0] + put[0]
+    assert path.sum() == pytest.approx(((call[10] + put[10]) - premium) / premium)
+
+
+def test_a_contract_with_no_delta_at_all_is_skipped_when_hedging():
+    n = len(DATES)
+    chain = synthetic_chain(np.full(n, 5.0), np.full(n, 5.0))
+    chain["delta"] = np.nan
+    under = pd.Series(100.0, index=DATES)
+    hedged = StraddleConfig(hold_days=10, spread_fraction=0.0, delta_hedge=True)
+    unhedged = StraddleConfig(hold_days=10, spread_fraction=0.0, delta_hedge=False)
+    assert straddle_trade(chain, under, DATES[0], EXDATE, STRIKE, +1, hedged) is None
+    assert straddle_trade(chain, under, DATES[0], EXDATE, STRIKE, +1, unhedged) is not None
