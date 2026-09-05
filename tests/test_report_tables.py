@@ -1,0 +1,100 @@
+"""Tests for the README table generator.
+
+Its whole purpose is to stop numbers being transcribed by hand, so the two
+things worth pinning are that it does not silently mangle a value and that a
+missing statistic renders as an empty cell rather than as "nan".
+"""
+import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from report_tables import _fmt, markdown  # noqa: E402
+
+
+@pytest.mark.parametrize("value,expected", [
+    (0.123456, "0.1235"),
+    (-2.5, "-2.5000"),
+    (3, "3"),
+    (np.int64(7), "7"),
+    (True, "yes"),
+    (False, "no"),
+    (np.bool_(True), "yes"),
+    ("har_rv_iv", "har_rv_iv"),
+    (np.nan, ""),
+    (None, ""),
+    (np.inf, ""),
+])
+def test_every_cell_type_renders_the_way_a_reader_expects(value, expected):
+    assert _fmt(value) == expected
+
+
+def test_a_missing_statistic_is_blank_not_the_word_nan():
+    frame = pd.DataFrame({"model": ["har"], "p": [np.nan]})
+    out = markdown(frame, {"model": "model", "p": "p"})
+    assert "nan" not in out.lower()
+    assert out.splitlines()[-1] == "| har |  |"
+
+
+def test_columns_absent_from_the_frame_are_skipped_not_invented():
+    frame = pd.DataFrame({"model": ["har"], "qlike_mean": [0.2]})
+    out = markdown(frame, {"model": "model", "qlike_mean": "QLIKE",
+                           "not_there": "missing"})
+    assert "missing" not in out
+    assert out.splitlines()[0] == "| model | QLIKE |"
+
+
+def test_the_header_separator_matches_the_column_count():
+    frame = pd.DataFrame({"a": [1.0], "b": [2.0], "c": [3.0]})
+    lines = markdown(frame, {"a": "a", "b": "b", "c": "c"}).splitlines()
+    assert lines[1] == "|---|---|---|"
+    assert lines[2].count("|") == lines[0].count("|")
+
+
+def test_injection_is_idempotent(tmp_path):
+    """Running it twice must replace the tables, not stack a second copy."""
+    from report_tables import inject
+
+    doc = tmp_path / "doc.md"
+    doc.write_text("intro\n\n<!-- RESULTS:MODELS -->\n\noutro\n")
+    inject(doc, {"models": "| a |\n|---|\n| 1 |"})
+    once = doc.read_text()
+    inject(doc, {"models": "| a |\n|---|\n| 1 |"})
+    assert doc.read_text() == once
+    assert once.count("<!-- RESULTS:MODELS -->") == 1
+    assert once.count("<!-- END:MODELS -->") == 1
+    assert once.startswith("intro") and once.endswith("outro\n")
+
+
+def test_injection_replaces_stale_numbers(tmp_path):
+    from report_tables import inject
+
+    doc = tmp_path / "doc.md"
+    doc.write_text("<!-- RESULTS:MODELS -->\n")
+    inject(doc, {"models": "old number 0.1234"})
+    inject(doc, {"models": "new number 0.9999"})
+    text = doc.read_text()
+    assert "0.9999" in text and "0.1234" not in text
+
+
+def test_a_marker_with_no_section_is_left_alone(tmp_path):
+    from report_tables import inject
+
+    doc = tmp_path / "doc.md"
+    doc.write_text("<!-- RESULTS:MODELS -->\n<!-- RESULTS:SWAP -->\n")
+    written = inject(doc, {"models": "table"})
+    assert written == 1
+    assert "<!-- RESULTS:SWAP -->" in doc.read_text()
+    assert "<!-- END:SWAP -->" not in doc.read_text()
+
+
+def test_an_integer_column_does_not_pick_up_decimals_from_its_neighbours():
+    """iterrows() upcasts a mixed-dtype row and turns horizon 21 into 21.0000."""
+    frame = pd.DataFrame({"horizon": [1, 5, 21], "coef": [0.5, 0.4, 0.3]})
+    out = markdown(frame, {"horizon": "horizon", "coef": "coef"})
+    assert "| 21 | 0.3000 |" in out
+    assert "21.0000" not in out

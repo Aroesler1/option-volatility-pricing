@@ -24,3 +24,11 @@ data/SPY_ivsurface.parquet
 # Cross-agent working notes. Kept locally, not published: it is scratch context
 # for whoever picks the work up next, not part of the repo.
 handoff.md
+
+# Licensed OptionMetrics option-level rows, pulled by fetch_option_chain.py.
+# Derived P&L series are committed; the rows are not.
+data/option_chain_spy.parquet
+data/option_chain_spy_entries.parquet
+
+# GDELT chunk cache: raw API responses, re-fetchable, not part of the result
+data/.gdelt_cache/
