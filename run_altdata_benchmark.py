@@ -385,6 +385,31 @@ def run_horizon(args, horizon: int) -> dict[str, pd.DataFrame]:
     rolling = (pd.concat(rolling_parts, ignore_index=True) if rolling_parts
                else pd.DataFrame())
 
+    # Regime split. The news and embedding literature is consistent that text
+    # signals earn their keep on high-volatility days and contribute nothing the
+    # rest of the time, so a pooled average can hide the whole effect. The split
+    # is made CAUSALLY: a day is "stressed" when its realized volatility exceeds
+    # the 80th percentile of every realized volatility observed strictly before
+    # it, which is knowable in real time. Using the test window's own quantile
+    # would be a small but real look-ahead in the reporting.
+    threshold = frame["rv"].shift(1).expanding(min_periods=250).quantile(0.8)
+    stressed = (frame["rv"] > threshold).reindex(test.index).fillna(False)
+    regime_rows = []
+    for name, pred in structural.items():
+        loss = qlike_series(pred.loc[test.index], test["target"])
+        regime_rows.append({
+            "horizon": horizon, "model": name,
+            "qlike_calm": float(loss[~stressed].mean()),
+            "qlike_stressed": float(loss[stressed].mean()),
+            "n_calm": int(loss[~stressed].notna().sum()),
+            "n_stressed": int(loss[stressed].notna().sum()),
+        })
+    table_r = pd.DataFrame(regime_rows)
+    har_calm = float(table_r.loc[table_r["model"] == "har", "qlike_calm"].iloc[0])
+    har_stress = float(table_r.loc[table_r["model"] == "har", "qlike_stressed"].iloc[0])
+    table_r["delta_calm_vs_har"] = table_r["qlike_calm"] - har_calm
+    table_r["delta_stressed_vs_har"] = table_r["qlike_stressed"] - har_stress
+
     # Descriptive, in-sample, and labelled as such: the Patton-Sheppard
     # asymmetry is a claim about COEFFICIENTS, and it can hold clearly while the
     # model still fails to forecast better out of sample. Reporting only the
@@ -408,8 +433,8 @@ def run_horizon(args, horizon: int) -> dict[str, pd.DataFrame]:
     forecasts = pd.DataFrame(structural).loc[test.index]
     forecasts.insert(0, "target", test["target"])
     return {"table_a": table_a, "table_b": table_b, "table_c": table_c,
-            "rolling": rolling, "forecasts": forecasts, "coverage": coverage,
-            "diagnostics": diagnostics}
+            "table_r": table_r, "rolling": rolling, "forecasts": forecasts,
+            "coverage": coverage, "diagnostics": diagnostics}
 
 
 def main() -> int:
@@ -437,6 +462,7 @@ def main() -> int:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     tag = args.tag or ("" if not args.extra_lag else f"_lag{args.extra_lag}")
     a_parts, b_parts, c_parts, d_parts, r_parts = [], [], [], [], []
+    regime_parts = []
     for horizon in args.horizons:
         res = run_horizon(args, horizon)
         if horizon == args.horizons[0]:
@@ -458,6 +484,12 @@ def main() -> int:
             ["model", "block", "qlike_mean", "qlike_delta_vs_base", "dm_vs_base",
              "p_vs_base", "in_mcs"]]
             .to_string(index=False, float_format=lambda v: f"{v:0.4f}"))
+        print("\nD. calm days against stressed days "
+              "(stressed = RV above its own expanding 80th percentile)")
+        print(res["table_r"].sort_values("qlike_stressed")[
+            ["model", "qlike_calm", "qlike_stressed", "delta_calm_vs_har",
+             "delta_stressed_vs_har", "n_calm", "n_stressed"]]
+            .to_string(index=False, float_format=lambda v: f"{v:0.4f}"))
         print("\nSHAR coefficients, in sample, descriptive only "
               "(Patton-Sheppard predict b_neg well above b_pos)")
         print(res["diagnostics"][["shar_b_pos", "shar_b_neg", "har_b_daily",
@@ -467,6 +499,7 @@ def main() -> int:
         b_parts.append(res["table_b"])
         c_parts.append(res["table_c"])
         d_parts.append(res["diagnostics"])
+        regime_parts.append(res["table_r"])
         if not res["rolling"].empty:
             r_parts.append(res["rolling"])
         res["forecasts"].to_csv(args.out_dir / f"altdata_forecasts_h{horizon}{tag}.csv")
@@ -479,6 +512,8 @@ def main() -> int:
         args.out_dir / f"altdata_marginal_rich{tag}.csv", index=False)
     pd.concat(d_parts, ignore_index=True).to_csv(
         args.out_dir / f"altdata_shar_coefficients{tag}.csv", index=False)
+    pd.concat(regime_parts, ignore_index=True).to_csv(
+        args.out_dir / f"altdata_regime_split{tag}.csv", index=False)
     if r_parts:
         pd.concat(r_parts, ignore_index=True).to_csv(
             args.out_dir / f"altdata_rolling_mcs{tag}.csv", index=False)
