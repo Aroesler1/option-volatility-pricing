@@ -628,16 +628,16 @@ below 8.0%, and the cap starts biting at 7.5%.
 
 | model | QLIKE | Sharpe | mean p.a. | vol p.a. | max drawdown | turnover p.a. |
 |---|---|---|---|---|---|---|
-| buy_and_hold |  | 1.2588 | 0.2101 | 0.1669 | -0.2023 |  |
-| lstm | 0.2286 | 1.2568 | 0.2536 | 0.2017 | -0.2492 | 26.8163 |
-| lstm_x | 0.1873 | 1.2492 | 0.2512 | 0.2011 | -0.2312 | 28.5267 |
-| combination | 0.1871 | 1.2328 | 0.2464 | 0.1999 | -0.2352 | 32.4567 |
-| har_x_lasso | 0.1841 | 1.2299 | 0.2456 | 0.1997 | -0.2423 | 30.3772 |
-| har_rv_iv | 0.1953 | 1.2293 | 0.2507 | 0.2039 | -0.2462 | 36.2102 |
-| har | 0.2095 | 1.2215 | 0.2465 | 0.2018 | -0.2392 | 39.8249 |
-| shar | 0.2102 | 1.2146 | 0.2444 | 0.2012 | -0.2377 | 42.2129 |
-| hgb | 0.1945 | 1.2005 | 0.2377 | 0.1980 | -0.2337 | 35.6330 |
-| persistence | 0.2783 | 1.1627 | 0.2387 | 0.2053 | -0.2412 | 61.7334 |
+| buy_and_hold |  | 1.2648 | 0.2110 | 0.1669 | -0.2023 |  |
+| lstm | 0.2286 | 1.2648 | 0.2551 | 0.2017 | -0.2491 | 26.8163 |
+| lstm_x | 0.1873 | 1.2540 | 0.2521 | 0.2011 | -0.2312 | 28.5267 |
+| combination | 0.1871 | 1.2395 | 0.2477 | 0.1998 | -0.2352 | 32.4567 |
+| har_x_lasso | 0.1841 | 1.2366 | 0.2469 | 0.1997 | -0.2423 | 30.3772 |
+| har_rv_iv | 0.1953 | 1.2364 | 0.2521 | 0.2039 | -0.2461 | 36.2102 |
+| har | 0.2095 | 1.2289 | 0.2479 | 0.2017 | -0.2392 | 39.8249 |
+| shar | 0.2102 | 1.2219 | 0.2458 | 0.2012 | -0.2376 | 42.2129 |
+| hgb | 0.1945 | 1.2075 | 0.2391 | 0.1980 | -0.2337 | 35.6330 |
+| persistence | 0.2783 | 1.1694 | 0.2400 | 0.2053 | -0.2412 | 61.7334 |
 
 QLIKE winner har_x_lasso, Sharpe winner lstm; Spearman(QLIKE, Sharpe) = -0.367 (p = 0.332)
 
@@ -645,16 +645,16 @@ QLIKE winner har_x_lasso, Sharpe winner lstm; Spearman(QLIKE, Sharpe) = -0.367 (
 
 | model | QLIKE | Sharpe | mean p.a. | vol p.a. | max drawdown | turnover p.a. |
 |---|---|---|---|---|---|---|
-| har_x_lasso | 0.1866 | 1.2805 | 0.2505 | 0.1956 | -0.2296 | 27.5989 |
-| buy_and_hold |  | 1.2588 | 0.2101 | 0.1669 | -0.2023 |  |
-| lstm_x | 0.2494 | 1.2508 | 0.2522 | 0.2016 | -0.2608 | 17.5289 |
-| combination | 0.1948 | 1.2365 | 0.2388 | 0.1931 | -0.2362 | 26.7172 |
-| har_rv_iv | 0.2033 | 1.2307 | 0.2394 | 0.1945 | -0.2401 | 32.5032 |
-| lstm | 0.2430 | 1.2172 | 0.2370 | 0.1947 | -0.2517 | 15.2106 |
-| har | 0.2090 | 1.2085 | 0.2335 | 0.1932 | -0.2356 | 37.7296 |
-| hgb | 0.1847 | 1.2065 | 0.2316 | 0.1919 | -0.2247 | 31.9187 |
-| shar | 0.2099 | 1.2036 | 0.2324 | 0.1931 | -0.2351 | 38.5769 |
-| persistence | 0.3530 | 1.1627 | 0.2387 | 0.2053 | -0.2412 | 61.7334 |
+| har_x_lasso | 0.1866 | 1.2870 | 0.2517 | 0.1956 | -0.2295 | 27.5989 |
+| buy_and_hold |  | 1.2648 | 0.2110 | 0.1669 | -0.2023 |  |
+| lstm_x | 0.2494 | 1.2577 | 0.2535 | 0.2016 | -0.2607 | 17.5289 |
+| combination | 0.1948 | 1.2436 | 0.2401 | 0.1931 | -0.2362 | 26.7172 |
+| har_rv_iv | 0.2033 | 1.2378 | 0.2407 | 0.1945 | -0.2400 | 32.5032 |
+| lstm | 0.2430 | 1.2242 | 0.2383 | 0.1947 | -0.2516 | 15.2106 |
+| har | 0.2090 | 1.2158 | 0.2349 | 0.1932 | -0.2355 | 37.7296 |
+| hgb | 0.1847 | 1.2135 | 0.2329 | 0.1919 | -0.2246 | 31.9187 |
+| shar | 0.2099 | 1.2108 | 0.2337 | 0.1930 | -0.2350 | 38.5769 |
+| persistence | 0.3530 | 1.1694 | 0.2400 | 0.2053 | -0.2412 | 61.7334 |
 
 QLIKE winner hgb, Sharpe winner har_x_lasso; Spearman(QLIKE, Sharpe) = -0.317 (p = 0.406)
 
@@ -662,16 +662,16 @@ QLIKE winner hgb, Sharpe winner har_x_lasso; Spearman(QLIKE, Sharpe) = -0.317 (p
 
 | model | QLIKE | Sharpe | mean p.a. | vol p.a. | max drawdown | turnover p.a. |
 |---|---|---|---|---|---|---|
-| lstm_x | 0.3142 | 1.3586 | 0.2754 | 0.2027 | -0.2547 | 12.3101 |
-| combination | 0.2332 | 1.3106 | 0.2424 | 0.1850 | -0.2233 | 16.9361 |
-| hgb | 0.2278 | 1.3071 | 0.2499 | 0.1912 | -0.2261 | 20.4999 |
-| har_x_lasso | 0.2530 | 1.2925 | 0.2526 | 0.1954 | -0.2277 | 27.5481 |
-| har_rv_iv | 0.2485 | 1.2882 | 0.2312 | 0.1794 | -0.2207 | 23.2805 |
-| har | 0.2452 | 1.2821 | 0.2297 | 0.1791 | -0.2211 | 24.6104 |
-| shar | 0.2453 | 1.2777 | 0.2291 | 0.1793 | -0.2211 | 24.3932 |
-| lstm | 0.2641 | 1.2686 | 0.2405 | 0.1896 | -0.2424 | 9.0299 |
-| buy_and_hold |  | 1.2588 | 0.2101 | 0.1669 | -0.2023 |  |
-| persistence | 0.5811 | 1.1627 | 0.2387 | 0.2053 | -0.2412 | 61.7334 |
+| lstm_x | 0.3142 | 1.3639 | 0.2765 | 0.2027 | -0.2546 | 12.3101 |
+| combination | 0.2332 | 1.3174 | 0.2437 | 0.1850 | -0.2232 | 16.9361 |
+| hgb | 0.2278 | 1.3147 | 0.2513 | 0.1911 | -0.2261 | 20.4999 |
+| har_x_lasso | 0.2530 | 1.2985 | 0.2537 | 0.1954 | -0.2276 | 27.5481 |
+| har_rv_iv | 0.2485 | 1.2954 | 0.2324 | 0.1794 | -0.2207 | 23.2805 |
+| har | 0.2452 | 1.2895 | 0.2309 | 0.1791 | -0.2211 | 24.6104 |
+| shar | 0.2453 | 1.2849 | 0.2303 | 0.1793 | -0.2211 | 24.3932 |
+| lstm | 0.2641 | 1.2751 | 0.2417 | 0.1896 | -0.2423 | 9.0299 |
+| buy_and_hold |  | 1.2648 | 0.2110 | 0.1669 | -0.2023 |  |
+| persistence | 0.5811 | 1.1694 | 0.2400 | 0.2053 | -0.2412 | 61.7334 |
 
 QLIKE winner hgb, Sharpe winner lstm_x; Spearman(QLIKE, Sharpe) = -0.367 (p = 0.332)
 
@@ -728,7 +728,7 @@ are what decides whether any of the others had a chance.
 | har_x_lasso | -0.5072 | -0.2441 | -0.9318 | -0.2321 | 0.3004 | 4.0165 | 243 |
 | hgb | -0.5407 | -0.2769 | -1.0550 | -0.2582 | 0.3449 | 4.7438 | 287 |
 | har_rv_iv | -0.6315 | -0.2453 | -1.0615 | -0.2519 | 0.3137 | 3.4000 | 204 |
-| har | -0.6690 | -0.2560 | -1.0391 | -0.2432 | 0.3143 | 3.5000 | 210 |
+| har | -0.6689 | -0.2560 | -1.0391 | -0.2432 | 0.3143 | 3.5000 | 210 |
 | shar | -0.7521 | -0.2853 | -1.0774 | -0.2519 | 0.3019 | 3.5333 | 212 |
 | persistence | -0.7888 | -0.2416 | -0.9131 | -0.1515 | 0.3030 | 3.2727 | 198 |
 | lstm_x | -0.8833 | -0.4536 | -1.3388 | -0.2621 | 0.2699 | 4.7769 | 289 |
@@ -887,9 +887,13 @@ python run_iv_benchmark.py
 pip install -r requirements.txt
 
 python build_intraday_rv.py
-WRDS_USERNAME=yourlogin python fetch_wrds_features.py
-WRDS_USERNAME=yourlogin python fetch_option_chain.py
+python fetch_spy_daily.py
 python fetch_alt_data.py
+
+# WRDS is behind Duo. The fetchers refuse to connect unless this is set for the
+# run, attempt one connection each, and never retry a refusal.
+WRDS_DUO_READY=1 WRDS_USERNAME=yourlogin python fetch_wrds_features.py
+WRDS_DUO_READY=1 WRDS_USERNAME=yourlogin python fetch_option_chain.py
 
 python run_altdata_benchmark.py
 python run_option_pnl.py
@@ -899,7 +903,10 @@ python report_tables.py
 
 WRDS credentials come from `~/.pgpass` and the intraday extract from
 `DATABENTO_RAW_DIR`. No credential is stored in this repository and no test
-reads one. GDELT's API answers roughly one uncached timeline query every several
+reads one. The only OptionMetrics material committed here is
+`data/features_option_market.csv`, which holds daily summaries derived under the
+programme licence; a reader without that licence regenerates it with
+`fetch_wrds_features.py`. The underlying price and return series is public. GDELT's API answers roughly one uncached timeline query every several
 minutes and returns HTTP 429 in between, so a cold news pull takes hours; every
 chunk is cached under `data/.gdelt_cache/`, so a rerun is free.
 
@@ -912,7 +919,8 @@ chunk is cached under `data/.gdelt_cache/`, so a rerun is free.
 | `alt_data.py` | the feature panel: alignment, publication lags, causal standardisation |
 | `option_strategies.py` | volatility-managed exposure, delta-hedged straddles, the synthetic variance swap |
 | `build_intraday_rv.py` | rebuilds the realized-variance series from the raw Databento extract |
-| `fetch_wrds_features.py`, `fetch_option_chain.py`, `fetch_alt_data.py` | the data pulls |
+| `fetch_wrds_features.py`, `fetch_option_chain.py` | the WRDS pulls, behind a Duo guard that allows one connection attempt per run |
+| `fetch_alt_data.py`, `fetch_spy_daily.py` | the public pulls: GDELT, Wikipedia, policy uncertainty, and SPY daily prices |
 | `run_altdata_benchmark.py` | the horse race at three horizons |
 | `run_option_pnl.py` | the economic evaluation |
 | `report_tables.py` | prints this README's tables from `results/` |

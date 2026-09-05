@@ -14,9 +14,10 @@ chain, so the pull is done in two passes:
   2. Pull every daily quote for the distinct (exdate, strike) contracts chosen
      in pass 1, over their whole life, both puts and calls.
 
-Underlying closes come from optionm.secprd so the hedge and the option quotes
-are from the same vendor and the same close, rather than mixing a second price
-source into the P&L.
+Underlying closes are NOT pulled here. They come from `fetch_spy_daily.py`,
+which uses yfinance, so no licensed vendor rows are needed for two columns of
+public information. On the overlap the two agree to 7 cents on the close at
+worst and 4e-05 on average, so the substitution costs nothing the P&L can see.
 
 LICENCE. This writes option-level rows, which are licensed and must not be
 committed. The output goes to a gitignored parquet; only the daily P&L series
@@ -87,25 +88,6 @@ def fetch_quote_paths(con, year: int, contracts: pd.DataFrame) -> pd.DataFrame:
     return _read(con, sql, (SPY_SECID,))
 
 
-def fetch_underlying(con, years: range) -> pd.DataFrame:
-    """SPY closes and total returns from OptionMetrics.
-
-    `close` is the price the delta hedge trades at, so it has to come from the
-    same vendor and the same close as the option quotes. `ret` is OptionMetrics'
-    own total return, which includes dividends; the volatility-managed strategy
-    needs a total return or its Sharpe is understated by the dividend yield.
-    """
-    frames = [_read(con, f"select date, close, return from optionm.secprd{y} "
-                         f"where secid = %s", (SPY_SECID,)) for y in years]
-    raw = pd.concat(frames, ignore_index=True)
-    out = pd.DataFrame({
-        "close": pd.to_numeric(raw["close"], errors="coerce").to_numpy(),
-        "ret": pd.to_numeric(raw["return"], errors="coerce").to_numpy(),
-    }, index=pd.to_datetime(raw["date"]))
-    out.index.name = "date"
-    return out.sort_index()
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--start-year", type=int, default=2018)
@@ -114,8 +96,6 @@ def main() -> int:
     parser.add_argument("--min-days", type=int, default=15)
     parser.add_argument("--max-days", type=int, default=60)
     parser.add_argument("--out", type=Path, default=Path("data/option_chain_spy.parquet"))
-    parser.add_argument("--underlying-out", type=Path,
-                        default=Path("data/SPY_optionmetrics_close.csv"))
     parser.add_argument("--username", default=None)
     args = parser.parse_args()
 
@@ -137,7 +117,6 @@ def main() -> int:
             quotes.append(got)
         chain = pd.concat(quotes, ignore_index=True).drop_duplicates(
             subset=["date", "optionid"])
-        under = fetch_underlying(con, years)
     finally:
         con.close()
 
@@ -157,10 +136,8 @@ def main() -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     chain.to_parquet(args.out, index=False)
     picks.to_parquet(args.out.with_name(args.out.stem + "_entries.parquet"), index=False)
-    under.to_csv(args.underlying_out, float_format="%.6f")
     print(f"chain: {len(chain):,} rows, {chain['date'].min().date()} -> {chain['date'].max().date()}")
     print(f"saved -> {args.out} (gitignored, licensed rows)")
-    print(f"saved -> {args.underlying_out}")
     return 0
 
 

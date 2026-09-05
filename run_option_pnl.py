@@ -22,7 +22,8 @@ c. A model-free synthetic variance swap: realized variance over the next 21
    around, and it is the number the forecast-driven strategies have to beat.
 
 Requires `run_altdata_benchmark.py` to have been run first (it reads the saved
-per-model forecasts) and `fetch_option_chain.py` for the option quotes.
+per-model forecasts), `fetch_option_chain.py` for the option quotes, and
+`fetch_spy_daily.py` for the underlying closes and total returns.
 
 Usage:
     python run_option_pnl.py
@@ -178,7 +179,7 @@ def main() -> int:
     parser.add_argument("--tag", default="")
     args = parser.parse_args()
 
-    under = (pd.read_csv(args.data_dir / "SPY_optionmetrics_close.csv",
+    under = (pd.read_csv(args.data_dir / "SPY_daily.csv",
                          parse_dates=["date"]).set_index("date").sort_index())
     option_market = load_option_market(args.data_dir)
 
