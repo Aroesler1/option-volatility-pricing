@@ -115,11 +115,27 @@ def run_straddles(forecasts: pd.DataFrame, implied: pd.Series, chain: pd.DataFra
                   margin_quantile: float) -> tuple[pd.DataFrame, dict, dict]:
     models = [c for c in forecasts.columns if c != "target"]
     rows, series, rules = [], {}, {}
-    for model in models:
-        side, rule = straddle_signal(forecasts[model], implied,
-                                     margin_quantile=margin_quantile)
+    # Two unconditional benchmarks that use no forecast at all. The variance
+    # swap in part c says short variance was the profitable side of this sample;
+    # these say whether that survives being expressed in real options at the
+    # real quoted spread, which is a different question and the one that decides
+    # whether any of the forecast-driven books had a chance.
+    unconditional = {
+        "always_short": pd.Series(-1, index=forecasts.index),
+        "always_long": pd.Series(1, index=forecasts.index),
+    }
+    for model in models + list(unconditional):
+        if model in unconditional:
+            side, rule = unconditional[model], {"premium": np.nan, "margin": 0.0,
+                                                "calibration_end": "none",
+                                                "n_calibration": 0}
+        else:
+            side, rule = straddle_signal(forecasts[model], implied,
+                                         margin_quantile=margin_quantile)
         rules[model] = rule
         for label, long_only in (("both", False), ("long_only", True)):
+            if model == "always_short" and long_only:
+                continue                    # a long-only filter empties it
             book, trades = straddle_backtest(chain, entries, underlying, side,
                                              config, long_only=long_only)
             if book.empty:
@@ -251,7 +267,9 @@ def main() -> int:
                           for m in forecasts.columns if m != "target"}
         table["qlike_mean"] = table["model"].map(qlike_by_model)
         for variant in table["variant"].unique():
-            sub = table[table["variant"] == variant]
+            # the unconditional books have no forecast, so they are excluded
+            # from the rank correlation rather than given a missing rank
+            sub = table[(table["variant"] == variant) & table["qlike_mean"].notna()]
             rho, rho_p = rank_agreement(sub["qlike_mean"], sub["sharpe"])
             print(f"  {variant}: Spearman(QLIKE, Sharpe) = {rho:+.3f}, p = {rho_p:.3f}")
         table.to_csv(args.results_dir / f"option_pnl_straddles{args.tag}.csv", index=False)
