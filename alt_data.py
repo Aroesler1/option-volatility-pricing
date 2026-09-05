@@ -73,12 +73,18 @@ def align_to_sessions(frame: pd.DataFrame, sessions: pd.DatetimeIndex,
        unit the forecasts are made in.
 
     A `ffill_limit` of None fills without limit; use it only for series that are
-    genuinely step functions (the monthly EMV tracker).
+    genuinely step functions (the monthly EMV tracker). A `ffill_limit` of 0
+    disables the fill entirely, which is what a series that already has one
+    observation per trading session wants: filling it can only invent values
+    past the end of its coverage.
     """
     if lag < 0:
         raise ValueError("lag must be non-negative")
     idx = frame.index.union(sessions)
-    out = frame.reindex(idx).ffill(limit=ffill_limit).reindex(sessions)
+    out = frame.reindex(idx)
+    if ffill_limit != 0:
+        out = out.ffill(limit=ffill_limit)
+    out = out.reindex(sessions)
     return out.shift(lag) if lag else out
 
 
@@ -232,8 +238,11 @@ def build_feature_panel(sessions: pd.DatetimeIndex, data_dir: Path = DATA_DIR,
     parts = []
 
     if "option" in needed:
+        # No forward fill: OptionMetrics and CBOE publish one row per trading
+        # session inside their coverage, so a fill could only manufacture values
+        # after coverage ends, and the study's right-hand edge is exactly there.
         parts.append(align_to_sessions(load_option_block(data_dir), sessions,
-                                       lag=0 + extra_lag))
+                                       lag=0 + extra_lag, ffill_limit=0))
     if "news" in needed:
         parts.append(align_to_sessions(load_news_block(data_dir), sessions,
                                        lag=1 + extra_lag))
