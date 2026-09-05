@@ -10,7 +10,7 @@ recorded here as unavailable rather than quietly dropped.
 | file | source | licence | what it is |
 |---|---|---|---|
 | `data/SPY_intraday_rv.csv` | Databento `XNAS.ITCH`, SPY 1-minute bars | programme licence, derived aggregate published | 2,094 daily rows, 2018-05 to 2026-08: realized variance, realized quarticity, bucket count, and the positive and negative realized semivariances |
-| `data/SPY_optionmetrics_close.csv` | OptionMetrics `secprd` via WRDS | licensed, derived daily series published | SPY closing price and total return, 2018 to 2025-08 |
+| `data/SPY_daily.csv` | yfinance (public) | public | SPY unadjusted close and dividend-inclusive total return, 2018-01 to 2025-08, written by `fetch_spy_daily.py` |
 | `data/databento/` | Databento raw `.dbn.zst` | licensed, **gitignored** | the 1-minute extract the RV series is built from |
 
 `build_intraday_rv.py` rebuilds `SPY_intraday_rv.csv` from the raw extract. It
@@ -36,11 +36,34 @@ Written by `fetch_wrds_features.py` to `data/features_option_market.csv`
 **2025-08-29**, which is what sets the right-hand end of the alternative-data
 study.
 
+**What is committed and what a reader without the licence does.**
+`data/features_option_market.csv` holds daily summaries DERIVED from
+OptionMetrics under the Berkeley MFE programme licence: one number per day per
+series, no option-level rows, no quotes, no contracts. It is published on that
+basis. A reader without the licence rebuilds the file by running
+`fetch_wrds_features.py` against their own WRDS entitlement, which reproduces
+every column from the same tables; the script is the definition of what those
+columns are. Nothing else in this repository derives from OptionMetrics: the
+underlying price and return series is public (yfinance), and the option-level
+quotes the straddle backtest needs are pulled to a gitignored parquet and never
+committed.
+
+The underlying series was OptionMetrics `secprd` until 2026-09 and is now
+yfinance. On the 1,926 overlapping days the two agree to $0.07 on the close at
+worst and 4e-05 on average, and the change moved no straddle Sharpe by more than
+3e-06 and no volatility-managed Sharpe by more than 0.008.
+
 `fetch_option_chain.py` pulls the individual straddle legs for the option P&L
 backtest into `data/option_chain_spy.parquet`. Those are option-level licensed
 rows and are **gitignored**; only the daily P&L series in `results/` is
 published. OptionMetrics' own `forward_price` column is NULL for SPY across this
-sample, so at-the-money strikes are chosen against the `secprd` closing spot.
+sample, so at-the-money strikes are chosen against the `secprd` closing spot
+inside the query; that spot is used to pick a strike and is not written out.
+
+Both WRDS scripts refuse to open a connection unless `WRDS_DUO_READY=1` is set
+for that run, attempt exactly one connection per invocation, and never retry a
+refusal. WRDS is behind Duo, and a retry loop against Duo is how an account gets
+locked.
 
 ## News tone
 
@@ -157,9 +180,13 @@ convention, and the README reports both.
 
 ```bash
 python build_intraday_rv.py                     # needs the Databento extract
-WRDS_USERNAME=yourlogin python fetch_wrds_features.py
-WRDS_USERNAME=yourlogin python fetch_option_chain.py
+python fetch_spy_daily.py                       # public, no credential
 python fetch_alt_data.py                        # free sources, slow (GDELT)
+
+# WRDS, behind Duo: set the acknowledgement only when ready to approve a push
+WRDS_DUO_READY=1 WRDS_USERNAME=yourlogin python fetch_wrds_features.py
+WRDS_DUO_READY=1 WRDS_USERNAME=yourlogin python fetch_option_chain.py
+
 python run_altdata_benchmark.py
 python run_option_pnl.py
 ```
