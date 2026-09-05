@@ -54,9 +54,14 @@ economy : theme:EPU_ECONOMY      sourcelang:eng
 
 `mode=timelinetone` gives the average GKG tone of matching coverage per day.
 `mode=timelinevolraw` gives both the matching article count and the total number
-of articles GDELT monitored that day; only the SHARE is used, because GDELT's
-crawl grew by about an order of magnitude over the sample and the raw count
-would encode that growth as a trend.
+of articles GDELT monitored that day; only the SHARE is used. The size of
+GDELT's crawl moved by a factor of about three over this sample, falling from
+roughly 520,000 monitored articles a day in early 2017 to 163,000 in late 2025,
+so the raw count encodes the date more than it encodes the news.
+
+Sanity check on the completed stock-market series: daily tone correlates -0.63
+with VIX and log coverage share +0.30, so tone falls and coverage rises when
+volatility rises. Both signs are the expected ones.
 
 The API answers roughly one uncached timeline query per minute or slower and
 returns HTTP 429 otherwise, so `fetch_alt_data.py` pauses between requests and

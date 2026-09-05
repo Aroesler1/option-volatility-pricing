@@ -7,9 +7,10 @@ news tone (GDELT 2.0 DOC API)
     `mode=timelinetone` returns the average GKG tone of matching coverage per
     day; `mode=timelinevolraw` returns both the matching article count and the
     total number of articles GDELT monitored that day. The count is only
-    meaningful as a SHARE of total coverage, because GDELT's crawl grew by
-    roughly an order of magnitude over the sample; the raw count would encode
-    that growth as a trend and any model would happily fit it.
+    meaningful as a SHARE of total coverage: the size of GDELT's crawl moved by
+    a factor of about three across this sample (downward, from roughly 520,000
+    monitored articles a day in early 2017 to 163,000 in late 2025), so the raw
+    count encodes the date more than it encodes the news.
 
     Two theme filters, both GKG themes, stated exactly so the query is
     reproducible:

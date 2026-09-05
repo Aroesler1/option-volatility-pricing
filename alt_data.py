@@ -146,8 +146,13 @@ def load_news_block(data_dir: Path = DATA_DIR) -> pd.DataFrame:
     out = pd.DataFrame(index=raw.index)
     out["gdelt_tone_mkt"] = raw["gdelt_tone_mkt"]
     out["gdelt_tone_econ"] = raw["gdelt_tone_econ"]
-    # share of all monitored coverage, logged: the raw article count tracks the
-    # tenfold growth of GDELT's crawl over the sample, not the news
+    # Share of all monitored coverage, logged. The raw article count mostly
+    # tracks the size of GDELT's crawl rather than the news: over this sample
+    # the total number of articles it monitored per day FELL by about a factor
+    # of three, from roughly 520,000 in early 2017 to 163,000 in late 2025, and
+    # the matching stock-market count fell with it. Normalising by the total
+    # removes that trend; the raw count would hand every model a proxy for the
+    # date.
     for label in ("mkt", "econ"):
         share = pd.to_numeric(raw[f"gdelt_share_{label}"], errors="coerce")
         out[f"gdelt_share_{label}"] = np.log(share.where(share > 0))
