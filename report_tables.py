@@ -6,14 +6,23 @@ produced them, because they are copied by hand. This prints them instead, so
 regenerating the README after a rerun is one command and a paste rather than
 twenty transcriptions.
 
+`--inject README.md` writes the tables into the README in place, between paired
+`<!-- RESULTS:NAME -->` and `<!-- END:NAME -->` markers, so the command is
+idempotent: run it again after a rerun and the numbers are replaced rather than
+duplicated.
+
 Usage:
-    python report_tables.py                 # every table, default tag
+    python report_tables.py                     # every table, default tag
     python report_tables.py --tag _nonews
     python report_tables.py --which models
+    python report_tables.py --inject README.md
 """
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
+import re
 from pathlib import Path
 
 import numpy as np
@@ -144,11 +153,48 @@ def shar_table(results: Path, tag: str) -> None:
     print(markdown(frame.sort_values("horizon"), headers))
 
 
+def capture(fn) -> str:
+    """Run a section and return what it printed."""
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        try:
+            fn()
+        except FileNotFoundError as exc:
+            print(f"(not generated: {exc.filename} not found)")
+    return buffer.getvalue().strip("\n")
+
+
+def inject(path: Path, blocks: dict[str, str]) -> int:
+    """Replace each marked region of `path` with its generated table.
+
+    Markers are paired so the edit is idempotent. On the first run a bare
+    `<!-- RESULTS:NAME -->` is expanded into marker, content, `<!-- END:NAME -->`;
+    on later runs everything between the pair is replaced. A marker with no
+    matching section is left alone rather than silently emptied.
+    """
+    text = path.read_text()
+    written = 0
+    for name, body in blocks.items():
+        key = name.upper()
+        paired = re.compile(rf"<!-- RESULTS:{key} -->.*?<!-- END:{key} -->", re.S)
+        block = f"<!-- RESULTS:{key} -->\n\n{body}\n\n<!-- END:{key} -->"
+        if paired.search(text):
+            text = paired.sub(lambda _: block, text)
+            written += 1
+        elif f"<!-- RESULTS:{key} -->" in text:
+            text = text.replace(f"<!-- RESULTS:{key} -->", block)
+            written += 1
+    path.write_text(text)
+    return written
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--results-dir", type=Path, default=Path("results"))
     parser.add_argument("--tag", default="")
     parser.add_argument("--which", nargs="+", default=["all"])
+    parser.add_argument("--inject", type=Path, default=None,
+                        help="write the tables into this markdown file in place")
     args = parser.parse_args()
 
     sections = {
@@ -163,14 +209,18 @@ def main() -> int:
         "swap": lambda: swap_table(args.results_dir, args.tag),
     }
     wanted = list(sections) if args.which == ["all"] else args.which
-    for name in wanted:
-        if name not in sections:
-            raise SystemExit(f"unknown section {name!r}; pick from {list(sections)}")
-        print(f"\n## {name}")
-        try:
-            sections[name]()
-        except FileNotFoundError as exc:
-            print(f"(skipped: {exc.filename} not found)")
+    unknown = [n for n in wanted if n not in sections]
+    if unknown:
+        raise SystemExit(f"unknown section(s) {unknown}; pick from {list(sections)}")
+
+    blocks = {name: capture(sections[name]) for name in wanted}
+    if args.inject is None:
+        for name in wanted:
+            print(f"\n## {name}")
+            print(blocks[name])
+        return 0
+    written = inject(args.inject, blocks)
+    print(f"injected {written} of {len(blocks)} sections into {args.inject}")
     return 0
 
 
