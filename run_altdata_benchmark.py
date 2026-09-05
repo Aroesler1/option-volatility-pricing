@@ -385,10 +385,31 @@ def run_horizon(args, horizon: int) -> dict[str, pd.DataFrame]:
     rolling = (pd.concat(rolling_parts, ignore_index=True) if rolling_parts
                else pd.DataFrame())
 
+    # Descriptive, in-sample, and labelled as such: the Patton-Sheppard
+    # asymmetry is a claim about COEFFICIENTS, and it can hold clearly while the
+    # model still fails to forecast better out of sample. Reporting only the
+    # QLIKE column would hide half of what happened.
+    shar_full = SHARRV().fit_shar(frame["rv"], frame["rs_pos_var"],
+                                  frame["rs_neg_var"], frame["target"])
+    har_full = HARRV().fit(frame["rv"], frame["target"])
+    b0, b_pos, b_neg, b_w, b_m = shar_full.coef_
+    diagnostics = pd.DataFrame([{
+        "horizon": horizon,
+        "shar_intercept": b0, "shar_b_pos": b_pos, "shar_b_neg": b_neg,
+        "shar_b_weekly": b_w, "shar_b_monthly": b_m,
+        "har_b_daily": har_full.coef_[1], "har_b_weekly": har_full.coef_[2],
+        "har_b_monthly": har_full.coef_[3],
+        "corr_semivols": float(frame["rs_pos_vol"].corr(frame["rs_neg_vol"])),
+        "corr_pos_rv": float(frame["rs_pos_vol"].corr(frame["rv"])),
+        "corr_neg_rv": float(frame["rs_neg_vol"].corr(frame["rv"])),
+        "n_obs": len(frame),
+    }])
+
     forecasts = pd.DataFrame(structural).loc[test.index]
     forecasts.insert(0, "target", test["target"])
     return {"table_a": table_a, "table_b": table_b, "table_c": table_c,
-            "rolling": rolling, "forecasts": forecasts, "coverage": coverage}
+            "rolling": rolling, "forecasts": forecasts, "coverage": coverage,
+            "diagnostics": diagnostics}
 
 
 def main() -> int:
@@ -415,7 +436,7 @@ def main() -> int:
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     tag = args.tag or ("" if not args.extra_lag else f"_lag{args.extra_lag}")
-    a_parts, b_parts, c_parts, r_parts = [], [], [], []
+    a_parts, b_parts, c_parts, d_parts, r_parts = [], [], [], [], []
     for horizon in args.horizons:
         res = run_horizon(args, horizon)
         if horizon == args.horizons[0]:
@@ -437,9 +458,15 @@ def main() -> int:
             ["model", "block", "qlike_mean", "qlike_delta_vs_base", "dm_vs_base",
              "p_vs_base", "in_mcs"]]
             .to_string(index=False, float_format=lambda v: f"{v:0.4f}"))
+        print("\nSHAR coefficients, in sample, descriptive only "
+              "(Patton-Sheppard predict b_neg well above b_pos)")
+        print(res["diagnostics"][["shar_b_pos", "shar_b_neg", "har_b_daily",
+                                  "corr_semivols"]]
+              .to_string(index=False, float_format=lambda v: f"{v:0.4f}"))
         a_parts.append(res["table_a"])
         b_parts.append(res["table_b"])
         c_parts.append(res["table_c"])
+        d_parts.append(res["diagnostics"])
         if not res["rolling"].empty:
             r_parts.append(res["rolling"])
         res["forecasts"].to_csv(args.out_dir / f"altdata_forecasts_h{horizon}{tag}.csv")
@@ -450,6 +477,8 @@ def main() -> int:
         args.out_dir / f"altdata_marginal{tag}.csv", index=False)
     pd.concat(c_parts, ignore_index=True).to_csv(
         args.out_dir / f"altdata_marginal_rich{tag}.csv", index=False)
+    pd.concat(d_parts, ignore_index=True).to_csv(
+        args.out_dir / f"altdata_shar_coefficients{tag}.csv", index=False)
     if r_parts:
         pd.concat(r_parts, ignore_index=True).to_csv(
             args.out_dir / f"altdata_rolling_mcs{tag}.csv", index=False)

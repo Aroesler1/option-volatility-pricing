@@ -51,6 +51,28 @@ from option_strategies import (
 from run_vol_benchmark import qlike_series
 
 
+def rank_agreement(qlike: pd.Series, sharpe: pd.Series) -> tuple[float, float]:
+    """Spearman rank correlation between forecast loss and strategy Sharpe.
+
+    This is the whole question in one number. QLIKE is a loss, so a model that
+    forecasts better has a LOWER QLIKE and, if the statistics matter
+    economically, a HIGHER Sharpe. The correlation should therefore be
+    NEGATIVE, and the more negative it is the more the forecast ranking
+    survives contact with trading costs. It says nothing about whether the
+    strategy makes money, only whether being better at forecasting puts you
+    higher up the P&L table.
+    """
+    from scipy.stats import spearmanr
+
+    frame = pd.concat([pd.to_numeric(qlike, errors="coerce").rename("q"),
+                       pd.to_numeric(sharpe, errors="coerce").rename("s")],
+                      axis=1).dropna()
+    if len(frame) < 4:
+        return np.nan, np.nan
+    rho, p = spearmanr(frame["q"], frame["s"])
+    return float(rho), float(p)
+
+
 def load_forecasts(path: Path) -> pd.DataFrame:
     frame = pd.read_csv(path, parse_dates=["date"]).set_index("date").sort_index()
     return frame
@@ -191,6 +213,12 @@ def main() -> int:
         if sharpe_winner == qlike_winner:
             print(f"  QLIKE winner and Sharpe winner are the same model "
                   f"({sharpe_winner}), so that comparison is vacuous here")
+        traded = table[table["model"] != "buy_and_hold"]
+        rho, rho_p = rank_agreement(traded["qlike_mean"], traded["sharpe"])
+        print(f"  Spearman(QLIKE, Sharpe) across models = {rho:+.3f}, p = {rho_p:.3f}"
+              f"  (negative means the forecast ranking survives into the P&L ranking)")
+        stats["qlike_sharpe_spearman"] = rho
+        stats["qlike_sharpe_spearman_p"] = rho_p
         vm_tables[-1] = vm_tables[-1].assign(**stats)
 
     if vm_tables:
@@ -219,6 +247,13 @@ def main() -> int:
               f"{example['premium']:+.5f} variance, margin {example['margin']:.5f}, "
               f"calibration ends {example['calibration_end']}")
         print(table.to_string(index=False, float_format=lambda v: f"{v:0.4f}"))
+        qlike_by_model = {m: float(qlike_series(forecasts[m], forecasts["target"]).mean())
+                          for m in forecasts.columns if m != "target"}
+        table["qlike_mean"] = table["model"].map(qlike_by_model)
+        for variant in table["variant"].unique():
+            sub = table[table["variant"] == variant]
+            rho, rho_p = rank_agreement(sub["qlike_mean"], sub["sharpe"])
+            print(f"  {variant}: Spearman(QLIKE, Sharpe) = {rho:+.3f}, p = {rho_p:.3f}")
         table.to_csv(args.results_dir / f"option_pnl_straddles{args.tag}.csv", index=False)
         pd.DataFrame(rules).T.to_csv(
             args.results_dir / f"option_pnl_straddle_rules{args.tag}.csv")
