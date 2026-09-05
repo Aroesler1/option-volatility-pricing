@@ -63,10 +63,14 @@ Sanity check on the completed stock-market series: daily tone correlates -0.63
 with VIX and log coverage share +0.30, so tone falls and coverage rises when
 volatility rises. Both signs are the expected ones.
 
-The API answers roughly one uncached timeline query per minute or slower and
+`data/features_gdelt.csv` holds 2,782 daily rows, 2018-01-01 to 2025-09-01,
+with no gaps in either theme.
+
+The API answers roughly one uncached timeline query every 10 to 15 minutes and
 returns HTTP 429 otherwise, so `fetch_alt_data.py` pauses between requests and
-caches every chunk under `data/.gdelt_cache/` (gitignored). A cold pull takes
-upwards of an hour; a rerun is free.
+caches every chunk under `data/.gdelt_cache/` (gitignored). A cold pull is 32
+chunks and takes several hours; a rerun is free. Ranges much longer than a year
+are refused however long you wait, which is why the pull is chunked by year.
 
 ## Attention
 
