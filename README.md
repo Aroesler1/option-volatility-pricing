@@ -20,7 +20,10 @@ next to everything that worked.
    variance on its own captures more than half of the 1-day improvement that
    the full sixteen-feature LASSO achieves. Added to HAR one at a time, both
    GDELT tone series are significantly WORSE than HAR at 1 day, and Wikipedia
-   attention and policy uncertainty are indistinguishable from it.
+   attention and policy uncertainty are indistinguishable from it. Measured
+   against a benchmark that already contains semivariance and implied variance,
+   **not one of the sixteen features is significantly better and three are
+   significantly worse.**
 3. **The improvement the literature was most confident about does not
    replicate.** Semivariance HAR fails to beat HAR at every horizon, even though
    the sign asymmetry it is built on is unmistakably present in its
@@ -444,6 +447,14 @@ it adds once the two cheap improvements are already in the model.
 
 <!-- END:MARGINAL_RICH -->
 
+The literature review's methodological point was right, and it is decisive.
+Against bare HAR at 1 day, implied variance is worth 0.014 of QLIKE and the term
+slope another 0.011. Against a base that already contains semivariance and
+implied variance, **not one of the sixteen features is significantly better**,
+and three are significantly worse. Every claim in this study that alternative
+data adds something is a claim about adding it to HAR, not about adding it to a
+model that already knows what the option market is pricing.
+
 ### Calm days against stressed days
 
 The news and embedding literature is consistent that text signals earn their
@@ -497,6 +508,17 @@ strictly before them, which is knowable in real time.
 | lstm_x | 0.2882 | 0.5556 | 0.0559 | 0.1901 |
 
 <!-- END:REGIME -->
+
+The split cuts in opposite directions at the two ends of the horizon range, and
+that is the most interesting thing in this section. At 1 day the feature-driven
+models earn their advantage disproportionately in stress: the feature-augmented
+LSTM is 0.120 QLIKE better than HAR on the 70 stressed days against 0.012 better
+on the 650 calm ones, and the LASSO 0.088 against 0.019. That is exactly the
+pattern the news and embedding literature reports. At 21 days the same two
+models reverse: both LSTMs are far worse than HAR in stress and close to it
+otherwise. A network that helps most when volatility spikes at a one-day horizon
+and hurts most when it spikes at a one-month horizon is not a model anyone should
+deploy on the strength of a pooled average.
 
 ### The semivariance result, in full
 
