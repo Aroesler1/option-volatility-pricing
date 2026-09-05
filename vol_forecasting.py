@@ -678,3 +678,160 @@ def mean_combination(forecasts: Sequence[pd.Series]) -> pd.Series:
         raise ValueError("need at least one forecast")
     frame = pd.concat([pd.to_numeric(f, errors="coerce") for f in forecasts], axis=1)
     return frame.mean(axis=1, skipna=False)
+
+
+# ---------------------------------------------------------------------------
+# Semivariance HAR and exogenous-regressor HAR
+# ---------------------------------------------------------------------------
+#
+# UNITS, again, because this module models annualized realized VOLATILITY while
+# the papers below are written in realized VARIANCE. The semivariance identity
+# RS+ + RS- = RV holds in variance. Its volatility-unit analogue is
+#
+#     sqrt(252*RS+)^2 + sqrt(252*RS-)^2 = sqrt(252*RV)^2,
+#
+# so `semivol` below returns sqrt(252*RS) and the two regressors still add up to
+# the daily RV regressor in squares. That is a reparameterisation of
+# Patton-Sheppard, not a different model: the split between upside and downside
+# variation, which is the whole content of SHAR, is preserved exactly.
+
+
+def semivol(semivariance: pd.Series, trading_days: int = TRADING_DAYS) -> pd.Series:
+    """Annualised volatility-unit form of a daily realized semivariance."""
+    s = pd.to_numeric(semivariance, errors="coerce")
+    return np.sqrt(s.clip(lower=0.0) * trading_days)
+
+
+@dataclass
+class SHARRV(HARRV):
+    """Semivariance HAR of Patton & Sheppard (REStat 2015).
+
+    The daily term of HAR is split by the SIGN of the intraday return that
+    produced it:
+
+        RV_{t+h} ~ b0 + b_pos * RS+_t + b_neg * RS-_t + b_w * RV_w + b_m * RV_m
+
+    Their finding is that b_neg is large and positive while b_pos is small and
+    often NEGATIVE: volatility that arrives on down moves predicts more future
+    volatility, and volatility on up moves predicts less. HAR forces the two to
+    share one coefficient, which averages the effect away. This is the strongest
+    horizon-stable result in the forecasting literature that needs no data
+    beyond the price path.
+    """
+
+    _COLS = ["rs_pos", "rs_neg", "rv_w", "rv_m"]
+
+    @staticmethod
+    def _shar_features(rv: pd.Series, rs_pos: pd.Series, rs_neg: pd.Series) -> pd.DataFrame:
+        har = HARRV._features(rv)
+        return pd.DataFrame({
+            "rs_pos": semivol(rs_pos),
+            "rs_neg": semivol(rs_neg),
+            "rv_w": har["rv_w"],
+            "rv_m": har["rv_m"],
+        })
+
+    def fit_shar(self, rv: pd.Series, rs_pos: pd.Series, rs_neg: pd.Series,
+                 target: pd.Series) -> "SHARRV":
+        X = self._shar_features(rv, rs_pos, rs_neg)
+        frame = pd.concat([X, target.rename("y")], axis=1).dropna()
+        if len(frame) < 60:
+            raise ValueError("not enough overlapping observations to fit SHAR")
+        A = np.column_stack([np.ones(len(frame)), frame[self._COLS].to_numpy()])
+        self.coef_, *_ = np.linalg.lstsq(A, frame["y"].to_numpy(), rcond=None)
+        return self
+
+    def predict_shar(self, rv: pd.Series, rs_pos: pd.Series,
+                     rs_neg: pd.Series) -> pd.Series:
+        if self.coef_ is None:
+            raise RuntimeError("fit_shar() first")
+        X = self._shar_features(rv, rs_pos, rs_neg)
+        A = np.column_stack([np.ones(len(X)), X[self._COLS].to_numpy()])
+        out = pd.Series(A @ self.coef_, index=rv.index)
+        out[X.isna().any(axis=1)] = np.nan
+        return out
+
+
+@dataclass
+class HARX(HARRV):
+    """HAR-RV with arbitrary exogenous regressors appended, fitted by OLS.
+
+    One class covers every "HAR plus something" specification in this study:
+    HAR-RV-IV is `HARX` with implied variance as the single extra column, the
+    marginal-value table is `HARX` run once per feature, and the kitchen-sink
+    model is `HARX` with all of them. Keeping them the same estimator means a
+    difference between two rows of the results table is a difference in
+    INFORMATION, not in fitting machinery.
+
+    `exog` is a DataFrame aligned on the same index as `rv`. Column order is
+    stored at fit time so predict cannot silently reorder them.
+    """
+
+    exog_cols_: Optional[list] = None
+
+    def _design(self, rv: pd.Series, exog: pd.DataFrame) -> pd.DataFrame:
+        har = self._features(rv)
+        ex = exog.reindex(rv.index)
+        if self.exog_cols_ is not None:
+            ex = ex[self.exog_cols_]
+        return pd.concat([har, ex], axis=1)
+
+    def fit_x(self, rv: pd.Series, exog: pd.DataFrame, target: pd.Series) -> "HARX":
+        self.exog_cols_ = list(exog.columns)
+        X = self._design(rv, exog)
+        frame = pd.concat([X, target.rename("y")], axis=1).dropna()
+        if len(frame) < 60:
+            raise ValueError("not enough overlapping observations to fit HAR-X")
+        A = np.column_stack([np.ones(len(frame)), frame[X.columns].to_numpy()])
+        self.coef_, *_ = np.linalg.lstsq(A, frame["y"].to_numpy(), rcond=None)
+        return self
+
+    def predict_x(self, rv: pd.Series, exog: pd.DataFrame) -> pd.Series:
+        if self.coef_ is None or self.exog_cols_ is None:
+            raise RuntimeError("fit_x() first")
+        X = self._design(rv, exog)
+        A = np.column_stack([np.ones(len(X)), X.to_numpy()])
+        out = pd.Series(A @ self.coef_, index=rv.index)
+        out[X.isna().any(axis=1)] = np.nan
+        return out
+
+
+# ---------------------------------------------------------------------------
+# Rolling Model Confidence Set
+# ---------------------------------------------------------------------------
+
+
+def rolling_model_confidence_set(
+    losses: pd.DataFrame,
+    window: int = 504,
+    step: int = 21,
+    alpha: float = 0.10,
+    n_boot: int = 500,
+    seed: int = 0,
+    min_obs: int = 200,
+) -> pd.DataFrame:
+    """MCS membership on a rolling window, so regime dependence is visible.
+
+    One MCS over the whole sample answers "which model was best on average since
+    2018", which averages a pandemic, a rate-hiking cycle and two quiet years
+    into a single verdict. Running the same test on two-year windows shows
+    whether a model's membership is stable or whether it is carried by one
+    regime. `window` is in observations, so 504 is roughly two trading years.
+
+    Returns a frame indexed by window end date, one boolean column per model.
+    Windows with fewer than `min_obs` common observations are skipped.
+    """
+    frame = losses.apply(pd.to_numeric, errors="coerce").replace(
+        [np.inf, -np.inf], np.nan).dropna()
+    rows: dict[pd.Timestamp, pd.Series] = {}
+    for end in range(window, len(frame) + 1, step):
+        block = frame.iloc[end - window:end]
+        if len(block) < min_obs:
+            continue
+        res = model_confidence_set(block, alpha=alpha, n_boot=n_boot, seed=seed)
+        rows[block.index[-1]] = res["in_mcs"].reindex(frame.columns)
+    if not rows:
+        return pd.DataFrame(columns=frame.columns)
+    out = pd.DataFrame(rows).T
+    out.index.name = "window_end"
+    return out

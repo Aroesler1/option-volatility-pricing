@@ -1,0 +1,12 @@
+# Runtime dependencies, with the reason each one is here.
+numpy                 # arrays and the linear algebra behind every model
+pandas                # the daily panel; every series in this repo is a DataFrame
+scipy                 # normal CDF for the Diebold-Mariano p-value
+scikit-learn          # ridge, LASSO selection, HistGradientBoosting
+torch                 # the LSTM arm, lifted from Main.ipynb into lstm_forecasting.py
+requests              # GDELT, Wikimedia and policyuncertainty.com pulls
+pyarrow               # parquet for the implied-vol surface and the option chain
+yfinance              # public SPY daily history for the long-sample benchmark
+psycopg2-binary       # WRDS (OptionMetrics, CBOE) over Postgres
+databento             # reading the licensed .dbn.zst intraday extract
+pytest                # the test suite
