@@ -114,6 +114,26 @@ def rolling_table(results: Path, tag: str) -> None:
                 print(f"| {model} | {value:.0%} |")
 
 
+def lagcompare_table(results: Path, tag: str) -> None:
+    """The headline run against the same run with one more day of publication lag.
+
+    This is the only table that reads two result files, because it is the only
+    claim that is about the difference between two runs. It is generated rather
+    than typed for the same reason as the rest: a cross-run comparison copied by
+    hand is the most likely number in a README to go stale.
+    """
+    base = pd.read_csv(results / f"altdata_models{tag}.csv")
+    lagged = pd.read_csv(results / f"altdata_models{tag}_lag1.csv")
+    merged = base.merge(lagged, on=["horizon", "model"], suffixes=("", "_lag1"))
+    headers = {"model": "model", "p_vs_har": "p, lag as stated",
+               "p_vs_har_lag1": "p, one more day", "in_mcs": "in MCS",
+               "in_mcs_lag1": "in MCS, one more day"}
+    for horizon in sorted(merged["horizon"].unique()):
+        sub = merged[merged["horizon"] == horizon].sort_values("qlike_mean")
+        print(f"\n#### Horizon {horizon} day{'s' if horizon > 1 else ''}\n")
+        print(markdown(sub, headers))
+
+
 def volmanaged_table(results: Path, tag: str) -> None:
     frame = pd.read_csv(results / f"option_pnl_volmanaged{tag}.csv")
     headers = {"model": "model", "qlike_mean": "QLIKE", "sharpe": "Sharpe",
@@ -210,6 +230,7 @@ def main() -> int:
         "regime": lambda: regime_table(args.results_dir, args.tag),
         "rolling": lambda: rolling_table(args.results_dir, args.tag),
         "shar": lambda: shar_table(args.results_dir, args.tag),
+        "lagcompare": lambda: lagcompare_table(args.results_dir, args.tag),
         "volmanaged": lambda: volmanaged_table(args.results_dir, args.tag),
         "straddles": lambda: straddle_table(args.results_dir, args.tag),
         "swap": lambda: swap_table(args.results_dir, args.tag),

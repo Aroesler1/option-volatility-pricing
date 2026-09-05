@@ -77,6 +77,12 @@ SPY-only put/call volume ratio stands in for the second and is named
 decision**, not by accident: its endpoint is unofficial and its samples differ
 between pulls, so a result built on it cannot be reproduced.
 
+The aligned sample runs **2018-05-31 to 2025-08-29**, starting where the
+Databento intraday extract does and ending where OptionMetrics coverage in WRDS
+ends. The last 40% is held out, which gives **726 out-of-sample forecasts from
+2022-10-13**, and every model is scored on the identical set of dates, which the
+Model Confidence Set requires in any case.
+
 ### The no-lookahead convention, stated once
 
 A feature stamped on date t must be observable **at the close of t**. That is
@@ -136,7 +142,14 @@ reader to find.
 
 ## Statistical results
 
-Regenerate every table below with `python report_tables.py`.
+Every table below is generated from `results/`. Regenerate them with
+`python report_tables.py --inject README.md`.
+
+Table A is the structural horse race: the models that differ in what they
+know, scored on identical dates, with the Model Confidence Set run over
+them. The one-feature-at-a-time models are kept out of it, because fifteen
+near-identical HAR-X models would destroy the MCS's power over the models
+that actually differ.
 
 <!-- RESULTS:MODELS -->
 
@@ -490,12 +503,51 @@ option quote struck at the same close it forecasts from.
 
 It does.
 
-| 1-day horizon | lag as stated | one more day |
-|---|---|---|
-| HAR-RV-IV vs HAR | p = **0.0021** | p = 0.216 |
-| HAR-X LASSO vs HAR | p = **0.0053** | p = 0.376 |
-| combination vs HAR | p = **0.0000** | p = 0.049 |
-| HAR in the 90% MCS | **excluded** | included |
+<!-- RESULTS:LAGCOMPARE -->
+
+#### Horizon 1 day
+
+| model | p, lag as stated | p, one more day | in MCS | in MCS, one more day |
+|---|---|---|---|---|
+| combination | 0.0000 | 0.0490 | yes | yes |
+| har_x_lasso | 0.0036 | 0.3759 | yes | yes |
+| lstm_x | 0.1055 | 0.0147 | yes | no |
+| hgb | 0.1011 | 0.6728 | yes | yes |
+| har_rv_iv | 0.0018 | 0.2163 | yes | yes |
+| har |  |  | no | yes |
+| shar | 0.6976 | 0.7440 | no | yes |
+| lstm | 0.1457 | 0.1618 | no | no |
+| persistence | 0.0000 | 0.0000 | no | no |
+
+#### Horizon 5 days
+
+| model | p, lag as stated | p, one more day | in MCS | in MCS, one more day |
+|---|---|---|---|---|
+| har_x_lasso | 0.0179 | 0.4378 | yes | yes |
+| hgb | 0.2455 | 0.6929 | yes | yes |
+| combination | 0.0533 | 0.2758 | yes | yes |
+| har_rv_iv | 0.6099 | 0.8757 | yes | yes |
+| har |  |  | yes | yes |
+| shar | 0.1668 | 0.1793 | yes | yes |
+| lstm | 0.0590 | 0.0090 | no | no |
+| lstm_x | 0.2208 | 0.2660 | yes | yes |
+| persistence | 0.0000 | 0.0000 | no | no |
+
+#### Horizon 21 days
+
+| model | p, lag as stated | p, one more day | in MCS | in MCS, one more day |
+|---|---|---|---|---|
+| hgb | 0.2895 | 0.4702 | yes | yes |
+| combination | 0.1290 | 0.2343 | yes | yes |
+| har |  |  | yes | yes |
+| shar | 0.7288 | 0.6608 | yes | yes |
+| har_x_lasso | 0.9367 | 0.7275 | yes | yes |
+| har_rv_iv | 0.4285 | 0.4605 | yes | yes |
+| lstm | 0.7048 | 0.2509 | yes | no |
+| lstm_x | 0.2936 | 0.2522 | yes | yes |
+| persistence | 0.0002 | 0.0002 | no | no |
+
+<!-- END:LAGCOMPARE -->
 
 The stated convention is defensible: an OptionMetrics closing quote for date t
 is known at the close of t, which is the same moment RV_t is known, and the
