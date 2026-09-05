@@ -53,3 +53,40 @@ def test_the_header_separator_matches_the_column_count():
     lines = markdown(frame, {"a": "a", "b": "b", "c": "c"}).splitlines()
     assert lines[1] == "|---|---|---|"
     assert lines[2].count("|") == lines[0].count("|")
+
+
+def test_injection_is_idempotent(tmp_path):
+    """Running it twice must replace the tables, not stack a second copy."""
+    from report_tables import inject
+
+    doc = tmp_path / "doc.md"
+    doc.write_text("intro\n\n<!-- RESULTS:MODELS -->\n\noutro\n")
+    inject(doc, {"models": "| a |\n|---|\n| 1 |"})
+    once = doc.read_text()
+    inject(doc, {"models": "| a |\n|---|\n| 1 |"})
+    assert doc.read_text() == once
+    assert once.count("<!-- RESULTS:MODELS -->") == 1
+    assert once.count("<!-- END:MODELS -->") == 1
+    assert once.startswith("intro") and once.endswith("outro\n")
+
+
+def test_injection_replaces_stale_numbers(tmp_path):
+    from report_tables import inject
+
+    doc = tmp_path / "doc.md"
+    doc.write_text("<!-- RESULTS:MODELS -->\n")
+    inject(doc, {"models": "old number 0.1234"})
+    inject(doc, {"models": "new number 0.9999"})
+    text = doc.read_text()
+    assert "0.9999" in text and "0.1234" not in text
+
+
+def test_a_marker_with_no_section_is_left_alone(tmp_path):
+    from report_tables import inject
+
+    doc = tmp_path / "doc.md"
+    doc.write_text("<!-- RESULTS:MODELS -->\n<!-- RESULTS:SWAP -->\n")
+    written = inject(doc, {"models": "table"})
+    assert written == 1
+    assert "<!-- RESULTS:SWAP -->" in doc.read_text()
+    assert "<!-- END:SWAP -->" not in doc.read_text()
