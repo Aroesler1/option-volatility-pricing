@@ -17,13 +17,21 @@ jobs:
           python-version: "3.13"
 
       # torch comes from the CPU-only index: the GPU wheel is several gigabytes
-      # and nothing here needs it. Everything else is what the tests import
-      # directly; the vendor clients (yfinance, databento, psycopg2, pyarrow)
-      # are deliberately absent, because no test is allowed to reach a vendor.
+      # and nothing here needs it.
+      #
+      # psycopg2-binary is here for one reason: the WRDS guard tests assert that
+      # a real psycopg2.OperationalError is caught, converted and chained, and
+      # doing that against a hand-rolled stand-in would test the stand-in.
+      # Installing a database driver is not the same as reaching a database;
+      # those tests replace psycopg2.connect for the whole module and fail
+      # loudly if anything tries to open a socket.
+      #
+      # yfinance, databento and pyarrow stay absent: every test that needs them
+      # stubs the module, so importing the real client would prove nothing.
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest numpy pandas scipy scikit-learn requests
+          pip install pytest numpy pandas scipy scikit-learn requests psycopg2-binary
           pip install --index-url https://download.pytorch.org/whl/cpu torch
 
       # The suite is deliberately offline: no test reads a vendor API, a
