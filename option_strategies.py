@@ -11,10 +11,9 @@ Two economic tests, plus one model-free check.
    what the option is priced at, sell it when the reverse, delta-hedged daily so
    the position is a bet on variance rather than on direction.
 
-3. `variance_swap_pnl` is the model-free version of test 2: the payoff to being
-   long a synthetic variance swap struck at VIX squared. It uses no forecast at
-   all, so it measures the variance risk premium itself, which is the thing any
-   straddle strategy is really trading around (Carr and Wu, RFS 2009).
+3. `variance_swap_pnl` subtracts implied from realized variance. VIX against
+   SPY regular-session RV is a descriptive proxy, with unmatched assets,
+   horizons and overnight coverage, not a replicating variance-swap payoff.
 
 Costs are charged in every case and stated, because a volatility-timing
 strategy's turnover is exactly where its edge goes.
@@ -52,7 +51,7 @@ def max_drawdown(returns: pd.Series) -> float:
     """
     r = pd.to_numeric(returns, errors="coerce").fillna(0.0)
     equity = r.cumsum()
-    return float((equity - equity.cummax()).min())
+    return float((equity - equity.cummax().clip(lower=0.0)).min())
 
 
 def worst_month(returns: pd.Series) -> float:
@@ -128,27 +127,46 @@ def volatility_managed(forecast_vol: pd.Series, asset_returns: pd.Series,
     """Scale exposure to a constant volatility target using each model's forecast.
 
     weight_t = target / forecast_t, capped at `cap`, applied to the return of
-    t+1. The one-day offset is the whole point: a weight set from a forecast
-    made at t must be earned on t+1, and setting it on the same day's return
+    t+2 after execution at the next session close. The offset matters: a weight set from a forecast
+    made at t must first be executable at t+1 close, and setting it on the same day's return
     would be the classic way to manufacture a Sharpe ratio out of nothing.
 
     Cost is `cost_bps` per unit of turnover, charged on the day the weight
     changes.
     """
     f = pd.to_numeric(forecast_vol, errors="coerce")
-    r = pd.to_numeric(asset_returns, errors="coerce")
-    frame = pd.concat([f.rename("f"), r.rename("r")], axis=1).dropna()
-    weight = (target_vol / frame["f"].where(frame["f"] > 0)).clip(upper=cap)
-    turnover = weight.diff().abs().fillna(weight.abs())
-    gross = weight.shift(1) * frame["r"]
-    cost = (cost_bps / 10000.0) * turnover.shift(1)
-    out = pd.DataFrame({
-        "weight": weight,
-        "turnover": turnover,
-        "gross": gross,
-        "net": gross - cost,
-    }).dropna(subset=["net"])
-    return out
+    r = pd.to_numeric(asset_returns, errors="coerce").sort_index()
+    if not r.index.is_unique or not f.index.is_unique:
+        raise ValueError("forecast and return dates must be unique")
+    # Missing forecasts mean no new decision, not a missing market session.
+    calendar = r.loc[f.index.min():f.index.max()].index
+    if r.reindex(calendar).isna().any():
+        raise ValueError("asset returns must cover every evaluation session")
+    decision = (target_vol / f.where(f > 0)).clip(upper=cap).reindex(calendar)
+    weight = decision.ffill().fillna(0.0)
+    effective = weight.shift(2).fillna(0.0)
+    market_return = r.reindex(calendar)
+    gross = effective * market_return
+    # Daily target weights require rebalancing even if the target is unchanged.
+    # The pre-rebalance risky weight includes the preceding session's drift.
+    if (1.0 + gross <= 0).any():
+        raise ValueError("leveraged portfolio exhausted its equity")
+    turnover_values, cost_values = [], []
+    prior_drifted = 0.0
+    for exposure, realized in zip(effective, market_return):
+        traded = abs(exposure - prior_drifted)
+        fee = cost_bps / 10000.0 * traded
+        net = exposure * realized - fee
+        if 1.0 + net <= 0:
+            raise ValueError("portfolio exhausted its equity after trading costs")
+        prior_drifted = exposure * (1.0 + realized) / (1.0 + net)
+        turnover_values.append(traded)
+        cost_values.append(fee)
+    turnover = pd.Series(turnover_values, index=calendar)
+    cost = pd.Series(cost_values, index=calendar)
+    return pd.DataFrame({"weight": weight, "effective_weight": effective,
+                         "turnover": turnover, "gross": gross,
+                         "net": gross - cost})
 
 
 # ---------------------------------------------------------------------------
@@ -164,9 +182,9 @@ class StraddleConfig:
     delta_hedge: bool = True
 
 
-def straddle_trade(chain: pd.DataFrame, underlying: pd.Series, entry_date: pd.Timestamp,
+def straddle_trade_components(chain: pd.DataFrame, underlying: pd.Series, entry_date: pd.Timestamp,
                    exdate: pd.Timestamp, strike: float, direction: int,
-                   config: StraddleConfig) -> Optional[pd.Series]:
+                   config: StraddleConfig) -> Optional[pd.DataFrame]:
     """Daily P&L of one delta-hedged straddle, as a fraction of the premium paid.
 
     `direction` is +1 for a long straddle and -1 for a short one. The option
@@ -181,31 +199,37 @@ def straddle_trade(chain: pd.DataFrame, underlying: pd.Series, entry_date: pd.Ti
                  & (chain["date"] >= entry_date)]
     if legs.empty:
         return None
-    dates = np.sort(legs["date"].unique())[: config.hold_days + 1]
-    if len(dates) < 2:
+    if config.hold_days < 1 or direction not in (-1, 1):
+        raise ValueError("hold_days must be positive and direction must be signed")
+    if not underlying.index.is_unique or not underlying.index.is_monotonic_increasing:
+        raise ValueError("underlying needs unique increasing session dates")
+    dates = underlying.index[underlying.index >= entry_date][:config.hold_days + 1]
+    if (len(dates) != config.hold_days + 1 or dates[0] != entry_date
+            or dates[-1] > exdate):
         return None
     legs = legs[legs["date"].isin(dates)]
-    wide_bid = legs.pivot_table(index="date", columns="cp_flag", values="best_bid")
-    wide_ask = legs.pivot_table(index="date", columns="cp_flag", values="best_offer")
-    wide_delta = legs.pivot_table(index="date", columns="cp_flag", values="delta")
+    if legs.duplicated(["date", "cp_flag"]).any():
+        raise ValueError("ambiguous duplicate contract quotes")
+    wide_bid = legs.pivot(index="date", columns="cp_flag", values="best_bid").reindex(dates)
+    wide_ask = legs.pivot(index="date", columns="cp_flag", values="best_offer").reindex(dates)
+    wide_delta = legs.pivot(index="date", columns="cp_flag", values="delta").reindex(dates)
     if not {"C", "P"}.issubset(wide_bid.columns):
         return None
-    # A quote on both legs is what the trade needs; a delta is what the HEDGE
-    # needs, and OptionMetrics leaves delta blank on about 7% of otherwise
-    # perfectly quoted days. Dropping those days was throwing away valid price
-    # information and, worse, ending trades early: a 21-day hold that lost its
-    # last two deltas exited two days into the past, at a different price, which
-    # is the single largest term in the P&L. Deltas are carried instead.
-    quotes_ok = wide_bid.notna().all(axis=1) & wide_ask.notna().all(axis=1)
-    common = wide_bid.index[quotes_ok]
-    if len(common) < 2:
+    # Reject incomplete paths instead of skipping sessions or choosing a later
+    # entry. This complete-case diagnostic remains conditional on quote coverage.
+    quotes_ok = (np.isfinite(wide_bid).all(axis=1) & np.isfinite(wide_ask).all(axis=1)
+                 & wide_bid.ge(0).all(axis=1) & wide_ask.ge(wide_bid).all(axis=1))
+    if not quotes_ok.all():
         return None
+    common = dates
     wide_bid, wide_ask = wide_bid.loc[common], wide_ask.loc[common]
     # pivot_table drops a column entirely when every value in it is missing, so
     # "no delta at all" shows up as a missing column rather than as NaNs
     has_delta = {"C", "P"}.issubset(wide_delta.columns)
     if has_delta:
-        wide_delta = wide_delta.reindex(common).ffill().bfill()
+        # A future delta cannot establish the entry hedge. Later gaps can use
+        # the last observed delta, but an unhedgeable entry must be skipped.
+        wide_delta = wide_delta.reindex(common).ffill()
         has_delta = not wide_delta.isna().any().any()
     if config.delta_hedge and not has_delta:
         return None                # no delta anywhere: this one cannot be hedged
@@ -214,35 +238,41 @@ def straddle_trade(chain: pd.DataFrame, underlying: pd.Series, entry_date: pd.Ti
     spread = wide_ask - wide_bid
     straddle_mid = mid["C"] + mid["P"]
     straddle_spread = spread["C"] + spread["P"]
-    # entry at the touch, exit at the touch, both against the position's own side
-    entry_price = straddle_mid.iloc[0] + direction * config.spread_fraction * straddle_spread.iloc[0]
-    exit_price = straddle_mid.iloc[-1] - direction * config.spread_fraction * straddle_spread.iloc[-1]
     premium = float(straddle_mid.iloc[0])
     if not np.isfinite(premium) or premium <= 0:
         return None
-
-    marks = straddle_mid.copy()
-    marks.iloc[0] = entry_price
-    marks.iloc[-1] = exit_price
-    option_pnl = direction * marks.diff()
-    option_pnl.iloc[0] = 0.0        # the entry day has a position but no move yet
-
+    option_pnl = direction * straddle_mid.diff().fillna(0.0)
+    option_cost = pd.Series(0.0, index=common)
+    option_cost.iloc[0] = config.spread_fraction * straddle_spread.iloc[0]
+    option_cost.iloc[-1] = config.spread_fraction * straddle_spread.iloc[-1]
     hedge_pnl = pd.Series(0.0, index=common)
+    hedge_cost = pd.Series(0.0, index=common)
     if config.delta_hedge:
-        spot = pd.to_numeric(underlying.reindex(common), errors="coerce").ffill()
+        spot = pd.to_numeric(underlying.reindex(common), errors="coerce")
+        if not np.isfinite(spot).all() or not spot.gt(0).all():
+            return None
         net_delta = direction * (wide_delta["C"] + wide_delta["P"])
-        shares = -net_delta                                   # delta neutral
-        price_pnl = (shares.shift(1) * spot.diff()).fillna(0.0)
-        # shares traded: putting the hedge on at entry, rebalancing each day, and
-        # taking it off at exit. Charging only the rebalances would make a
-        # constant-delta position look free to hedge, which it is not.
+        shares = -net_delta
+        hedge_pnl = (shares.shift(1) * spot.diff()).fillna(0.0)
         traded = shares.diff().abs()
         traded.iloc[0] = abs(float(shares.iloc[0]))
-        traded.iloc[-1] = traded.iloc[-1] + abs(float(shares.iloc[-1]))
-        cost = (config.hedge_cost_bps / 10000.0) * traded * spot
-        hedge_pnl = price_pnl - cost.fillna(0.0)
+        # Directly unwind the hedge carried into exit; do not establish a new
+        # exit-delta hedge only to immediately unwind it.
+        traded.iloc[-1] = abs(float(shares.iloc[-2]))
+        hedge_cost = (config.hedge_cost_bps / 10000.0) * traded * spot
+    components = pd.DataFrame({"option_mid": option_pnl, "hedge_price": hedge_pnl,
+                               "option_spread": -option_cost, "hedge_cost": -hedge_cost}) / premium
+    components["net"] = components.sum(axis=1)
+    return components
 
-    return (option_pnl + hedge_pnl.fillna(0.0)) / premium
+
+def straddle_trade(chain: pd.DataFrame, underlying: pd.Series, entry_date: pd.Timestamp,
+                   exdate: pd.Timestamp, strike: float, direction: int,
+                   config: StraddleConfig) -> Optional[pd.Series]:
+    """Daily net premium-budget return; see straddle_trade_components."""
+    components = straddle_trade_components(chain, underlying, entry_date, exdate,
+                                            strike, direction, config)
+    return None if components is None else components["net"]
 
 
 def straddle_backtest(chain: pd.DataFrame, entries: pd.DataFrame, underlying: pd.Series,
@@ -262,23 +292,33 @@ def straddle_backtest(chain: pd.DataFrame, entries: pd.DataFrame, underlying: pd
     picks = entries.set_index("date")
     daily: list[pd.Series] = []
     trades = []
+    admission = {"attempted_signals": 0, "missing_entry": 0, "rejected_path": 0}
     for date, side in signal.dropna().items():
         side = int(np.sign(side))
         if side == 0 or (long_only and side < 0):
             continue
+        admission["attempted_signals"] += 1
         if date not in picks.index:
+            admission["missing_entry"] += 1
             continue
         row = picks.loc[date]
-        path = straddle_trade(chain, underlying, date, row["exdate"], row["strike"],
-                              side, config)
-        if path is None or path.abs().sum() == 0:
+        components = straddle_trade_components(chain, underlying, date, row["exdate"],
+                                               row["strike"], side, config)
+        if components is None:
+            admission["rejected_path"] += 1
             continue
+        path = components["net"]
         daily.append(path)
         trades.append({"entry": date, "exit": path.index[-1], "direction": side,
                        "strike": float(row["strike"]), "exdate": row["exdate"],
-                       "days_held": len(path) - 1, "trade_return": float(path.sum())})
+                       "days_held": len(path) - 1, "trade_return": float(path.sum()),
+                       **{c: float(components[c].sum()) for c in components if c != "net"}})
     if not daily:
-        return pd.Series(dtype=float), pd.DataFrame()
+        empty = pd.DataFrame(columns=["entry", "exit", "direction", "strike",
+                                      "exdate", "days_held", "trade_return", "option_mid",
+                                      "hedge_price", "option_spread", "hedge_cost"])
+        empty.attrs.update(admission)
+        return pd.Series(0.0, index=signal.index), empty
     book = pd.concat(daily, axis=1).sum(axis=1, min_count=1) / config.hold_days
     # Days on which the rule said "flat" are zero-return days, not missing days.
     # Dropping them would divide the same total P&L by a smaller day count and
@@ -286,7 +326,9 @@ def straddle_backtest(chain: pd.DataFrame, entries: pd.DataFrame, underlying: pd
     # it would do so by a different amount for each model, which is exactly the
     # comparison this table exists to make.
     full = pd.DatetimeIndex(signal.index).union(book.index)
-    return book.reindex(full).fillna(0.0).sort_index(), pd.DataFrame(trades)
+    trade_table = pd.DataFrame(trades)
+    trade_table.attrs.update(admission)
+    return book.reindex(full).fillna(0.0).sort_index(), trade_table
 
 
 def straddle_signal(forecast_vol: pd.Series, implied_vol: pd.Series,
@@ -306,10 +348,14 @@ def straddle_signal(forecast_vol: pd.Series, implied_vol: pd.Series,
       margin   the `margin_quantile` quantile of the absolute adjusted signal.
                At the default 0.5 the strategy trades on roughly half the days.
 
-    Returns (+1/-1/0 series, the frozen parameters).
+    Calibration dates are zero signals. Returns (+1/-1/0 series, the frozen
+    parameters); performance must start at `evaluation_start`, not average the
+    deliberately untraded calibration period into the evaluation period.
     """
     f = pd.to_numeric(forecast_vol, errors="coerce") ** 2
     i = pd.to_numeric(implied_vol, errors="coerce") ** 2
+    if not 0 < split < 1 or not 0 <= margin_quantile <= 1:
+        raise ValueError("split must be inside (0, 1) and quantile inside [0, 1]")
     frame = pd.concat([f.rename("f"), i.rename("i")], axis=1).dropna()
     cut = int(len(frame) * split)
     if cut < 30:
@@ -321,8 +367,10 @@ def straddle_signal(forecast_vol: pd.Series, implied_vol: pd.Series,
     side = pd.Series(0, index=frame.index, dtype=int)
     side[raw > margin] = 1
     side[raw < -margin] = -1
+    side.iloc[:cut] = 0
     return side, {"premium": premium, "margin": margin, "calibration_end":
-                  str(frame.index[cut - 1].date()), "n_calibration": cut}
+                  str(frame.index[cut - 1].date()), "n_calibration": cut,
+                  "evaluation_start": str(frame.index[cut].date())}
 
 
 # ---------------------------------------------------------------------------
@@ -387,10 +435,10 @@ def variance_swap_pnl(implied_vol: pd.Series, realized_forward_vol: pd.Series
     """Payoff to a long synthetic variance swap struck at implied variance.
 
     Long variance pays realized minus implied, in annualized variance units.
-    With implied taken as VIX squared this is the Carr and Wu (2009)
-    variance-swap return, and it needs no forecast: it measures the variance
-    risk premium directly, which is the benchmark any forecast-driven straddle
-    strategy has to beat to have shown anything.
+    A replicating swap interpretation requires matched assets, horizons and
+    return coverage. In this repository VIX is based on SPX options over 30
+    calendar days while the target is SPY regular-session variance over trading
+    days. That calculation is a descriptive proxy, not a tradeable swap return.
     """
     i = pd.to_numeric(implied_vol, errors="coerce") ** 2
     r = pd.to_numeric(realized_forward_vol, errors="coerce") ** 2

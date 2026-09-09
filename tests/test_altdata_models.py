@@ -208,7 +208,7 @@ def test_lstm_scaling_uses_training_statistics_only():
     lo_before = model._lo.copy()
     model.predict(frame)                      # predicting must not refit anything
     assert np.allclose(lo_before, model._lo)
-    assert np.allclose(lo_before, train[["a", "b"]].to_numpy().min(axis=0))
+    assert np.allclose(lo_before, train.iloc[:-81][["a", "b"]].to_numpy().min(axis=0))
 
 
 def test_lstm_is_deterministic_under_a_fixed_seed():
