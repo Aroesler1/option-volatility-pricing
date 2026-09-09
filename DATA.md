@@ -194,3 +194,30 @@ python run_option_pnl.py
 Credentials come from `~/.pgpass` for WRDS and from the `DATABENTO_RAW_DIR`
 environment variable for the intraday extract. No credential is stored in this
 repository, and no test reads one.
+
+
+## Derived inference audit, 2026-09-06
+
+No new source or licence is introduced. `results/audit_*.csv` records reproduced
+QLIKE means, raw and Holm feature tests, frozen trading-rule parameters,
+aggregate trade statistics, common-calendar daily portfolio P&L, and old/new
+performance tables. The only licensed inputs used for the corrected trading
+calculation were the existing ignored option-chain and entry caches. Contract
+identifiers, strikes, quotes and contract-level deltas are not redistributed.
+
+`python run_inference_audit.py --check` regenerates the audit summaries from
+committed derived data. Rebuilding the daily P&L itself uses the cached chain
+via `--rebuild-straddles --chain-dir <local-cache>` and makes no network call.
+The stored adaptive-model forecasts predate the inner-validation repair and
+are preserved; the later `_purged.csv` files contain the completed fixed-protocol refit. This audit does not create
+a fresh holdout or alter historical forecast tables.
+
+## Derived execution repair, 2026-09-08
+
+No new source or licence is introduced. `results/*_purged.csv` preserves the
+fixed-specification forecast refit and repaired strategy diagnostics separately
+from historical outputs. The straddle daily file contains aggregate portfolio
+P&L only. `results/integrity_*.csv` reconciles forecast loss, family inference,
+trade admission counts and every premium-budget P&L row. Quote paths, strikes,
+contract identifiers and raw deltas remain in the existing ignored cache.
+Run `python run_integrity_report.py --check` without credentials or network.

@@ -75,8 +75,16 @@ def marginal_tables(results: Path, tag: str, rich: bool) -> None:
     delta = "qlike_delta_vs_base" if rich else "qlike_delta_vs_har"
     dm, pv = ("dm_vs_base", "p_vs_base") if rich else ("dm_vs_har", "p_vs_har")
     frame = pd.read_csv(results / f"{name}{tag}.csv")
+    audit_path = results / "audit_marginal_holm.csv"
+    if not tag and audit_path.exists():
+        audit = pd.read_csv(audit_path)
+        family = "rich_har" if rich else "har"
+        frame = frame.merge(audit.loc[audit["family"] == family,
+                                      ["horizon", "model", "p_holm", "p_holm_joint"]],
+                            on=["horizon", "model"], how="left", validate="one_to_one")
     headers = {"model": "model", "block": "block", "qlike_mean": "QLIKE mean",
-               delta: "delta vs base", dm: "DM", pv: "p"}
+               delta: "delta vs base", dm: "DM", pv: "raw p",
+               "p_holm": "Holm p", "p_holm_joint": "joint Holm p"}
     for horizon in sorted(frame["horizon"].unique()):
         sub = frame[frame["horizon"] == horizon].sort_values("qlike_mean")
         sub = sub.assign(model=sub["model"].str.replace("^(har_x__|rich_x__)", "",
@@ -190,6 +198,27 @@ def capture(fn) -> str:
     return buffer.getvalue().strip("\n")
 
 
+def audit_holm_table(results: Path) -> None:
+    frame = pd.read_csv(results / "audit_marginal_holm_summary.csv")
+    print(markdown(frame, {"family": "benchmark", "n_tests": "tests",
+                           "raw_better": "raw better", "raw_worse": "raw worse",
+                           "holm_better": "Holm better", "holm_worse": "Holm worse",
+                           "joint_holm_better": "joint better",
+                           "joint_holm_worse": "joint worse"}))
+
+
+def audit_straddle_table(results: Path) -> None:
+    frame = pd.read_csv(results / "audit_straddle_comparison.csv")
+    headers = {"model": "model", "sharpe_historical": "old Sharpe",
+               "sharpe_corrected": "corrected Sharpe",
+               "mean_ann_historical": "old mean p.a.",
+               "mean_ann_corrected": "corrected mean p.a.",
+               "n_trades_historical": "old trades", "n_trades_corrected": "corrected trades"}
+    for variant, group in frame.groupby("variant", sort=False):
+        print(f"\n#### {variant}\n")
+        print(markdown(group.sort_values("sharpe_corrected", ascending=False), headers))
+
+
 def inject(path: Path, blocks: dict[str, str]) -> int:
     """Replace each marked region of `path` with its generated table.
 
@@ -234,6 +263,8 @@ def main() -> int:
         "volmanaged": lambda: volmanaged_table(args.results_dir, args.tag),
         "straddles": lambda: straddle_table(args.results_dir, args.tag),
         "swap": lambda: swap_table(args.results_dir, args.tag),
+        "audit_holm": lambda: audit_holm_table(args.results_dir),
+        "audit_straddles": lambda: audit_straddle_table(args.results_dir),
     }
     wanted = list(sections) if args.which == ["all"] else args.which
     unknown = [n for n in wanted if n not in sections]

@@ -55,14 +55,14 @@ def synthetic_chain(call_mid, put_mid, spread=0.0, call_delta=0.5, put_delta=-0.
 # ---------------------------------------------------------------------------
 
 
-def test_weight_is_earned_on_the_next_day_not_the_same_day():
+def test_close_forecast_executes_next_close_and_earns_following_return():
     idx = pd.bdate_range("2021-01-01", periods=5)
     forecast = pd.Series([0.15, 0.30, 0.15, 0.15, 0.15], index=idx)
-    returns = pd.Series([0.0, 0.0, 0.10, 0.0, 0.0], index=idx)
+    returns = pd.Series([0.0, 0.0, 0.0, 0.10, 0.0], index=idx)
     res = volatility_managed(forecast, returns, target_vol=0.15, cap=10.0, cost_bps=0.0)
     # the 0.30 forecast on day 2 halves the weight, and the halving must show up
-    # in day 3's return, which is the only nonzero one
-    assert res.loc[idx[2], "gross"] == pytest.approx(0.5 * 0.10)
+    # in day 4's return, which is the only nonzero one
+    assert res.loc[idx[3], "gross"] == pytest.approx(0.5 * 0.10)
 
 
 def test_cap_binds_when_the_forecast_is_tiny():
