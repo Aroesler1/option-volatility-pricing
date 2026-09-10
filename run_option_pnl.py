@@ -98,7 +98,8 @@ def run_vol_managed(forecasts: pd.DataFrame, spy_ret: pd.Series, target_vol: flo
         rows.append(stats)
     # the buy-and-hold leg, for scale: a volatility-managed strategy that cannot
     # beat holding the index has timed nothing
-    bh = spy_ret.reindex(forecasts.index).dropna()
+    calendar = next(iter(series.values())).index
+    bh = spy_ret.reindex(calendar)
     bh_stats = performance(bh)
     bh_stats["model"] = "buy_and_hold"
     bh_stats["qlike_mean"] = np.nan
@@ -114,52 +115,86 @@ def run_vol_managed(forecasts: pd.DataFrame, spy_ret: pd.Series, target_vol: flo
 def run_straddles(forecasts: pd.DataFrame, implied: pd.Series, chain: pd.DataFrame,
                   entries: pd.DataFrame, underlying: pd.Series, config: StraddleConfig,
                   margin_quantile: float) -> tuple[pd.DataFrame, dict, dict]:
+    # One aligned rule-calibration and evaluation calendar for every model.
+    # Selecting it once also prevents an unconditional control from trading
+    # dates on which the conditional rules were still being calibrated.
+    aligned = forecasts.join(implied.rename("_implied"), how="inner").dropna()
+    if not aligned.index.is_unique or not aligned.index.is_monotonic_increasing:
+        raise ValueError("forecasts must have unique, increasing dates")
+    implied = aligned.pop("_implied")
+    forecasts = aligned
     models = [c for c in forecasts.columns if c != "target"]
     rows, series, rules = [], {}, {}
-    # Two unconditional benchmarks that use no forecast at all. The variance
-    # swap in part c says short variance was the profitable side of this sample;
-    # these say whether that survives being expressed in real options at the
-    # real quoted spread, which is a different question and the one that decides
-    # whether any of the forecast-driven books had a chance.
+    signals = {}
+    for model in models:
+        signals[model], rules[model] = straddle_signal(
+            forecasts[model], implied, margin_quantile=margin_quantile)
+    decision_start = pd.Timestamp(rules[models[0]]["evaluation_start"])
+    market_calendar = underlying.index[(underlying.index >= forecasts.index.min())
+                                        & (underlying.index <= forecasts.index.max())]
+    # A close-t statistic selects a trade at close t+1. Shift on market sessions,
+    # not on the surviving aligned forecast rows.
+    for model in models:
+        signals[model] = signals[model].reindex(market_calendar).shift(1).fillna(0)
+        rules[model]["signal_lag_sessions"] = 1
+    evaluation_start = market_calendar[market_calendar > decision_start][0]
+    evaluation_dates = market_calendar[market_calendar >= evaluation_start]
     unconditional = {
-        "always_short": pd.Series(-1, index=forecasts.index),
-        "always_long": pd.Series(1, index=forecasts.index),
+        "always_short": pd.Series(-1, index=evaluation_dates),
+        "always_long": pd.Series(1, index=evaluation_dates),
     }
+    books, trade_tables = {}, {}
     for model in models + list(unconditional):
         if model in unconditional:
             side, rule = unconditional[model], {"premium": np.nan, "margin": 0.0,
                                                 "calibration_end": "none",
-                                                "n_calibration": 0}
+                                                "n_calibration": 0,
+                                                "evaluation_start": str(evaluation_start.date())}
         else:
-            side, rule = straddle_signal(forecasts[model], implied,
-                                         margin_quantile=margin_quantile)
+            side, rule = signals[model].loc[evaluation_dates], rules[model]
         rules[model] = rule
         for label, long_only in (("both", False), ("long_only", True)):
             if model == "always_short" and long_only:
                 continue                    # a long-only filter empties it
             book, trades = straddle_backtest(chain, entries, underlying, side,
                                              config, long_only=long_only)
-            if book.empty:
-                continue
-            stats = performance(book)
-            years = max(len(book) / 252.0, 1e-9)
-            stats.update({
-                "model": model, "variant": label,
-                "n_trades": int(len(trades)),
-                "trade_hit_rate": float((trades["trade_return"] > 0).mean()),
-                "mean_trade_return": float(trades["trade_return"].mean()),
-                "long_share": float((trades["direction"] > 0).mean()),
-                # each trade commits 1/hold_days of the premium budget, so this
-                # is premium turned over per year as a fraction of capital
-                "turnover_ann": float(len(trades) / years / config.hold_days),
-                "trades_per_year": float(len(trades) / years),
-            })
-            rows.append(stats)
-            series[f"{model}__{label}"] = book
+            books[(model, label)], trade_tables[(model, label)] = book, trades
+    # Include flat days and any final positions' runoff for every book. No
+    # strategy earns a shorter denominator just because its last signal differs.
+    end = max(book.index.max() for book in books.values())
+    calendar = underlying.index[(underlying.index >= evaluation_start)
+                                & (underlying.index <= end)].union(evaluation_dates)
+    for (model, label), book in books.items():
+        book = book.reindex(calendar).fillna(0.0)
+        trades = trade_tables[(model, label)]
+        stats = performance(book)
+        years = max(len(book) / 252.0, 1e-9)
+        stats.update({
+            "model": model, "variant": label,
+            "n_trades": int(len(trades)),
+            "trade_hit_rate": float((trades["trade_return"] > 0).mean()),
+            "mean_trade_return": float(trades["trade_return"].mean()),
+            "long_share": float((trades["direction"] > 0).mean()),
+            # each trade commits 1/hold_days of the premium budget
+            "turnover_ann": float(len(trades) / years / config.hold_days),
+            "trades_per_year": float(len(trades) / years),
+            "evaluation_start": str(calendar.min().date()),
+            "evaluation_end": str(calendar.max().date()),
+        })
+        for component in ("option_mid", "hedge_price", "option_spread", "hedge_cost"):
+            stats[component + "_total"] = (float(trades[component].sum()) / config.hold_days
+                                             if component in trades else np.nan)
+        stats.update(trades.attrs)
+        stats["evaluation_status"] = "retrospective_complete_quote_paths_premium_budget"
+        rows.append(stats)
+        series[f"{model}__{label}"] = book
     table = pd.DataFrame(rows)
     front = ["model", "variant", "sharpe", "mean_ann", "vol_ann", "max_drawdown",
              "worst_month", "hit_rate", "trade_hit_rate", "mean_trade_return",
-             "turnover_ann", "n_trades", "trades_per_year", "long_share", "n_days"]
+             "turnover_ann", "n_trades", "trades_per_year", "long_share", "n_days",
+             "evaluation_start", "evaluation_end", "option_mid_total", "hedge_price_total",
+             "option_spread_total", "hedge_cost_total", "attempted_signals",
+             "missing_entry", "rejected_path", "evaluation_status"]
     table = table[[c for c in front if c in table.columns]]
     return table.sort_values(["variant", "sharpe"], ascending=[True, False]), series, rules
 
@@ -196,6 +231,8 @@ def main() -> int:
         table.insert(0, "horizon", horizon)
         vm_tables.append(table)
         vm_series[horizon] = series
+        pd.DataFrame(series).to_csv(args.results_dir / f"option_pnl_vm_daily_h{horizon}{args.tag}.csv",
+                                    index_label="date")
         print(f"\n{'=' * 78}\na. volatility-managed SPY, {horizon}-day forecast "
               f"(target {args.target_vol:.0%}, cap {args.cap:g}, {args.cost_bps:g} bps)")
         print(table.to_string(index=False, float_format=lambda v: f"{v:0.4f}"))
@@ -231,7 +268,8 @@ def main() -> int:
             print(f"  QLIKE winner and Sharpe winner are the same model "
                   f"({sharpe_winner}), so that comparison is vacuous here")
         traded = table[table["model"] != "buy_and_hold"]
-        rho, rho_p = rank_agreement(traded["qlike_mean"], traded["sharpe"])
+        rho, rho_p = rank_agreement(traded.set_index("model")["qlike_mean"],
+                                    traded.set_index("model")["sharpe"])
         print(f"  Spearman(QLIKE, Sharpe) across models = {rho:+.3f}, p = {rho_p:.3f}"
               f"  (negative means the forecast ranking survives into the P&L ranking)")
         stats["qlike_sharpe_spearman"] = rho
@@ -274,6 +312,8 @@ def main() -> int:
             rho, rho_p = rank_agreement(sub["qlike_mean"], sub["sharpe"])
             print(f"  {variant}: Spearman(QLIKE, Sharpe) = {rho:+.3f}, p = {rho_p:.3f}")
         table.to_csv(args.results_dir / f"option_pnl_straddles{args.tag}.csv", index=False)
+        pd.DataFrame(series).to_csv(args.results_dir / f"option_pnl_straddle_daily{args.tag}.csv",
+                                    index_label="date")
         pd.DataFrame(rules).T.to_csv(
             args.results_dir / f"option_pnl_straddle_rules{args.tag}.csv")
     else:

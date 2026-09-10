@@ -83,6 +83,15 @@ def fit_scaler_train_only(
     return tuple([_scale(train)] + [_scale(f) for f in frames])
 
 
+def purged_validation_split(frame: pd.DataFrame, val_tail: int, horizon: int
+                            ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Chronological validation with no training target reaching its first date."""
+    if val_tail < 1 or horizon < 0 or len(frame) <= val_tail + horizon:
+        raise ValueError("validation needs positive tail and a nonempty purged fit")
+    boundary = len(frame) - val_tail
+    return frame.iloc[:boundary - horizon], frame.iloc[boundary:]
+
+
 @dataclass
 class HARRV:
     """HAR-RV of Corsi (2009): RV_{t+h} ~ RV_t + RV_t(weekly) + RV_t(monthly).

@@ -2,7 +2,7 @@ name: tests
 
 on:
   push:
-    branches: [main, alt-data]
+    branches: [main, alt-data, "review/**"]
   pull_request:
   workflow_dispatch:
 
@@ -40,3 +40,9 @@ jobs:
       # a secret was configured.
       - name: Run tests
         run: python -m pytest tests -q
+
+      - name: Verify committed inference tables
+        run: python run_inference_audit.py --check
+
+      - name: Verify repaired forecast and execution tables
+        run: python run_integrity_report.py --check

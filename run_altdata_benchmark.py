@@ -137,7 +137,7 @@ def make_harx_fp(cols):
     return fp
 
 
-def make_lasso_fp(cols, val_tail: int = 126):
+def make_lasso_fp(cols, val_tail: int = 126, horizon: int = 1):
     """HAR + all features, LASSO-selected, penalty chosen on a validation tail.
 
     The penalty is chosen by QLIKE on the last `val_tail` rows of the TRAINING
@@ -148,15 +148,16 @@ def make_lasso_fp(cols, val_tail: int = 126):
     on units.
     """
     from sklearn.linear_model import Lasso
+    from vol_forecasting import purged_validation_split
 
     har_cols = ["rv", "rv_w", "rv_m"]
     alphas = [1e-5, 3e-5, 1e-4, 3e-4, 1e-3, 3e-3, 1e-2]
 
     def fp(train, history):
         use = har_cols + list(cols)
-        fit_part, val_part = train.iloc[:-val_tail], train.iloc[-val_tail:]
+        fit_part, val_part = purged_validation_split(train, val_tail, horizon)
         if len(fit_part) < MIN_TRAIN // 2:
-            fit_part, val_part = train, train.iloc[-val_tail:]
+            raise ValueError("not enough rows for disjoint LASSO validation")
         mu, sd = fit_part[use].mean(), fit_part[use].std().replace(0, np.nan)
         scale = lambda df: ((df[use] - mu) / sd).fillna(0.0)
         best_alpha, best_loss = alphas[0], np.inf
@@ -172,7 +173,8 @@ def make_lasso_fp(cols, val_tail: int = 126):
     return fp
 
 
-def make_lstm_fp(cols, seq_len: int = 10, val_tail: int = 126, seed: int = 0):
+def make_lstm_fp(cols, seq_len: int = 10, val_tail: int = 126, seed: int = 0,
+                 horizon: int = 1):
     """The notebook LSTM, refit on the same schedule as everything else.
 
     Refitting a network every 21 days is expensive but it is the protocol every
@@ -186,13 +188,14 @@ def make_lstm_fp(cols, seq_len: int = 10, val_tail: int = 126, seed: int = 0):
 
     def fp(train, history):
         use = har_cols + list(cols)
-        model = LSTMForecaster(seq_len=seq_len, val_tail=val_tail, seed=seed)
+        model = LSTMForecaster(seq_len=seq_len, val_tail=val_tail, seed=seed,
+                               validation_gap=horizon)
         model.fit(train, use)
         return model.predict(history)
     return fp
 
 
-def make_hgb_fp(cols, val_tail: int = 126):
+def make_hgb_fp(cols, val_tail: int = 126, horizon: int = 1):
     """Gradient-boosted trees on the HAR terms plus every feature.
 
     LightGBM is not used; sklearn's HistGradientBoosting is the same histogram
@@ -209,6 +212,7 @@ def make_hgb_fp(cols, val_tail: int = 126):
     protocol the LASSO penalty is chosen under.
     """
     from sklearn.ensemble import HistGradientBoostingRegressor
+    from vol_forecasting import purged_validation_split
 
     har_cols = ["rv", "rv_w", "rv_m"]
     iteration_grid = (50, 100, 200, 400)
@@ -221,7 +225,7 @@ def make_hgb_fp(cols, val_tail: int = 126):
 
     def fp(train, history):
         use = har_cols + list(cols)
-        fit_part, val_part = train.iloc[:-val_tail], train.iloc[-val_tail:]
+        fit_part, val_part = purged_validation_split(train, val_tail, horizon)
         best_iter, best_loss = iteration_grid[0], np.inf
         if len(fit_part) >= MIN_TRAIN // 2:
             for n_iter in iteration_grid:
@@ -320,13 +324,14 @@ def run_horizon(args, horizon: int) -> dict[str, pd.DataFrame]:
         "har_rv_iv": walk_forward(frame, test_start, args.refit,
                                   make_harx_fp(["atm_ivar_30"]), purge=purge),
         "har_x_lasso": walk_forward(frame, test_start, args.refit,
-                                    make_lasso_fp(features), purge=purge),
-        "hgb": walk_forward(frame, test_start, args.refit, make_hgb_fp(features),
+                                    make_lasso_fp(features, horizon=horizon), purge=purge),
+        "hgb": walk_forward(frame, test_start, args.refit,
+                            make_hgb_fp(features, horizon=horizon),
                             purge=purge),
         "lstm": walk_forward(frame, test_start, args.refit,
-                             make_lstm_fp([], seed=args.seed), purge=purge),
+                             make_lstm_fp([], seed=args.seed, horizon=horizon), purge=purge),
         "lstm_x": walk_forward(frame, test_start, args.refit,
-                               make_lstm_fp(features, seed=args.seed), purge=purge),
+                               make_lstm_fp(features, seed=args.seed, horizon=horizon), purge=purge),
     }
     structural["combination"] = mean_combination(
         [structural[m].loc[test.index] for m in COMBINATION_MEMBERS])
