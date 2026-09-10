@@ -25,6 +25,8 @@ from typing import Optional, Sequence
 import numpy as np
 import pandas as pd
 
+from vol_forecasting import purged_validation_split
+
 
 def make_sequences(features: np.ndarray, target: np.ndarray, length: int
                    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -61,6 +63,7 @@ class LSTMForecaster:
     lr: float = 1e-3
     batch_size: int = 64
     val_tail: int = 126
+    validation_gap: int = 1
     seed: int = 0
     columns_: Optional[list] = None
     _model: object = field(default=None, repr=False)
@@ -100,18 +103,22 @@ class LSTMForecaster:
         if len(train) < self.seq_len + self.val_tail + 50:
             raise ValueError("not enough rows to fit the LSTM")
         values = train[self.columns_].to_numpy(dtype=float)
-        # min-max scaling on the TRAINING window only; span guarded so a
+        fit_part, val_part = purged_validation_split(
+            train, self.val_tail, self.validation_gap)
+        # min-max scaling on the inner FIT window only; span guarded so a
         # constant column (the calendar dummies in a quiet stretch) cannot
         # produce a division by zero
-        self._lo = values.min(axis=0)
-        span = values.max(axis=0) - self._lo
+        fit_values = fit_part[self.columns_].to_numpy(dtype=float)
+        self._lo = fit_values.min(axis=0)
+        span = fit_values.max(axis=0) - self._lo
         self._span = np.where(span <= 0, 1.0, span)
-        X, y, _ = make_sequences(self._scale(values),
+        X, y, positions = make_sequences(self._scale(values),
                                  train[target_col].to_numpy(dtype=float), self.seq_len)
         if len(X) <= self.val_tail:
             raise ValueError("not enough sequences to hold out a validation tail")
-        cut = len(X) - self.val_tail
-        Xtr, ytr, Xva, yva = X[:cut], y[:cut], X[cut:], y[cut:]
+        fit_mask = positions < len(fit_part)
+        val_mask = positions >= len(train) - len(val_part)
+        Xtr, ytr, Xva, yva = X[fit_mask], y[fit_mask], X[val_mask], y[val_mask]
 
         torch.manual_seed(self.seed)
         model = self._build(X.shape[2])
