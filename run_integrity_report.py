@@ -9,6 +9,44 @@ import pandas as pd
 from option_strategies import performance
 from run_inference_audit import holm_adjust
 from run_vol_benchmark import qlike_series
+from vol_forecasting import diebold_mariano, model_confidence_set
+
+
+def build_dm_mcs(root):
+    """Diebold-Mariano vs HAR and the 90% Model Confidence Set on the corrected
+    (purged) per-date forecast paths, using the same `diebold_mariano` and
+    `model_confidence_set` functions in `vol_forecasting.py`, and the same
+    parameters run_altdata_benchmark.py used for the pre-repair table: a
+    Newey-West lag of h-1 (floored at 1), alpha=0.10, 2000 bootstrap draws,
+    seed 0.
+    """
+    rows = []
+    for horizon in (1, 5, 21):
+        forecasts = pd.read_csv(root / f"altdata_forecasts_h{horizon}_purged.csv",
+                                parse_dates=["date"]).set_index("date")
+        models = [c for c in forecasts.columns if c != "target"]
+        losses = {m: qlike_series(forecasts[m], forecasts["target"]) for m in models}
+        losses_frame = pd.DataFrame(losses)
+        dm_lag = max(horizon - 1, 1)
+        mcs = model_confidence_set(losses_frame.dropna(), alpha=0.10, n_boot=2000, seed=0)
+        for model in models:
+            loss = losses[model]
+            if model == "har":
+                stat, p = np.nan, np.nan
+            else:
+                stat, p = diebold_mariano(loss, losses["har"], lag=dm_lag)
+            rows.append({
+                "horizon": horizon,
+                "model": model,
+                "qlike_mean": float(loss.mean()),
+                "qlike_median": float(loss.median()),
+                "dm_vs_har": stat,
+                "p_vs_har": p,
+                "n_obs": int(loss.notna().sum()),
+                "mcs_pvalue": float(mcs.loc[model, "mcs_pvalue"]),
+                "in_mcs": bool(mcs.loc[model, "in_mcs"]),
+            })
+    return pd.DataFrame(rows)
 
 
 def build(root):
@@ -58,7 +96,8 @@ def build(root):
                                  if (r.model, r.variant) in historical.index else np.nan for r in pnl.itertuples()]
     return {"integrity_forecasts.csv": pd.DataFrame(rows),
             "integrity_marginal_holm.csv": marginal,
-            "integrity_pnl_comparison.csv": pnl}
+            "integrity_pnl_comparison.csv": pnl,
+            "integrity_dm_mcs.csv": build_dm_mcs(root)}
 
 
 def main():
@@ -73,7 +112,8 @@ def main():
                                           rtol=1e-10, atol=1e-10)
         else:
             table.to_csv(root / name, index=False)
-    print("Verified corrected forecasts, family inference, every P&L row, component sums and signal admission counts")
+    print("Verified corrected forecasts, family inference, every P&L row, component sums, "
+          "signal admission counts, and DM/MCS on the corrected forecast paths")
 
 
 if __name__ == "__main__":

@@ -70,6 +70,23 @@ def models_tables(results: Path, tag: str) -> None:
         print(f"\nMCS(90%) = {{{', '.join(members)}}}")
 
 
+def integrity_dm_mcs_table(results: Path) -> None:
+    """DM vs HAR and the 90% MCS recomputed on the corrected (purged) forecast
+    paths; see `run_integrity_report.build_dm_mcs`. Not tagged: the purged
+    forecasts only exist for the headline (news-included) feature set.
+    """
+    frame = pd.read_csv(results / "integrity_dm_mcs.csv")
+    headers = {"model": "model", "qlike_mean": "QLIKE mean",
+               "qlike_median": "QLIKE median", "dm_vs_har": "DM vs HAR",
+               "p_vs_har": "p", "mcs_pvalue": "MCS p", "in_mcs": "in 90% MCS"}
+    for horizon in sorted(frame["horizon"].unique()):
+        sub = frame[frame["horizon"] == horizon].sort_values("qlike_mean")
+        print(f"\n#### Horizon {horizon} day{'s' if horizon > 1 else ''}\n")
+        print(markdown(sub, headers))
+        members = sub.loc[sub["in_mcs"], "model"].tolist()
+        print(f"\nMCS(90%) = {{{', '.join(members)}}}")
+
+
 def marginal_tables(results: Path, tag: str, rich: bool) -> None:
     name = "altdata_marginal_rich" if rich else "altdata_marginal"
     delta = "qlike_delta_vs_base" if rich else "qlike_delta_vs_har"
@@ -254,6 +271,7 @@ def main() -> int:
 
     sections = {
         "models": lambda: models_tables(args.results_dir, args.tag),
+        "integrity_dm_mcs": lambda: integrity_dm_mcs_table(args.results_dir),
         "marginal": lambda: marginal_tables(args.results_dir, args.tag, rich=False),
         "marginal_rich": lambda: marginal_tables(args.results_dir, args.tag, rich=True),
         "regime": lambda: regime_table(args.results_dir, args.tag),
