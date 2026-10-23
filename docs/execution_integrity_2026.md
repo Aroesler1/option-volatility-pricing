@@ -1,5 +1,8 @@
 # Forecast and execution repair, 2026-09-08
 
+Update 2026-10-23: the straddle expiry rule, the admission counts and the
+straddle numbers changed after this note; see [audit_history.md](audit_history.md).
+
 Scope: the existing SPY sample, with no new search or data pull. The frozen
 forecast specifications were refitted after purging inner validation outcomes
 and fitting the LSTM scaler only on inner training rows. This is a retrospective

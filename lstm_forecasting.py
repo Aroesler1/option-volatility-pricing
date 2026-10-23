@@ -11,10 +11,10 @@ split, and a fixed seed so a rerun reproduces the number.
 
 The point of including it is comparability, not hope. The literature is
 consistent that neural gains over HAR on index volatility are small, and the
-README's baseline chapter already reports ridge as statistically
-indistinguishable from HAR. Adding the alternative-data features is the one
-change that could plausibly move that, since a sequence model is the natural
-place for a slow-moving attention or news series to interact with the
+baseline benchmark (`results/vol_benchmark_SPY_dm.csv`) already finds ridge
+statistically indistinguishable from HAR. Adding the alternative-data features
+is the one change that could plausibly move that, since a sequence model is the
+natural place for a slow-moving attention or news series to interact with the
 volatility path.
 """
 from __future__ import annotations

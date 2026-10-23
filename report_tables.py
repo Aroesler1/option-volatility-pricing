@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Print the README's results tables as markdown, straight from the results CSVs.
+"""Print the results tables in docs/full_results.md, straight from the results CSVs.
 
-The numbers in a README are the part most likely to drift from the code that
+The numbers in a write-up are the part most likely to drift from the code that
 produced them, because they are copied by hand. This prints them instead, so
-regenerating the README after a rerun is one command and a paste rather than
-twenty transcriptions.
+regenerating the tables after a rerun is one command rather than twenty
+transcriptions.
 
-`--inject README.md` writes the tables into the README in place, between paired
+`--inject docs/full_results.md` writes the tables into that file in place, between paired
 `<!-- RESULTS:NAME -->` and `<!-- END:NAME -->` markers, so the command is
 idempotent: run it again after a rerun and the numbers are replaced rather than
 duplicated.
@@ -15,7 +15,7 @@ Usage:
     python report_tables.py                     # every table, default tag
     python report_tables.py --tag _nonews
     python report_tables.py --which models
-    python report_tables.py --inject README.md
+    python report_tables.py --inject docs/full_results.md
 """
 from __future__ import annotations
 

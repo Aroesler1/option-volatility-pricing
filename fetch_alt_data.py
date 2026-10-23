@@ -22,11 +22,13 @@ news tone (GDELT 2.0 DOC API)
     newspaper-based economy filter that literature uses.
 
     GDELT's stated limit is one request per 5 seconds, but in practice it
-    answers an UNCACHED timeline query about once a minute and returns HTTP 429
-    with the rate-limit text for everything in between, so the pause between
-    requests is 80 seconds and every chunk is cached to disk. A full pull is
-    about 40 requests and takes roughly an hour; rerunning it costs nothing
-    because the cache is checked first. Ranges much longer than a year are
+    returns HTTP 429 with the rate-limit text to most UNCACHED timeline
+    queries. In the pull that built the committed file, successful requests
+    came 1.5 to about 60 minutes apart (median about 12), so the script pauses
+    80 seconds before each request, retries a 429 every 150 seconds, and caches
+    every chunk to disk. The committed 2018-01 to 2025-09 range is 32 chunks
+    (two themes, two modes, eight yearly chunks) and took several hours;
+    rerunning it costs nothing because the cache is checked first. Ranges much longer than a year are
     refused however long you wait, which is why the pull is chunked by year.
 
 attention (Wikimedia pageviews REST API)
@@ -71,7 +73,7 @@ import requests
 
 USER_AGENT = "option-volatility-pricing/0.1 (academic research; volatility forecasting)"
 GDELT_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
-GDELT_SLEEP = 80.0         # the real limit, not the stated one; see the docstring
+GDELT_SLEEP = 80.0         # pause before each uncached request; see the docstring
 GDELT_CACHE = Path("data/.gdelt_cache")
 WIKI_URL = ("https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
             "en.wikipedia/all-access/user/{article}/daily/{start}/{end}")
@@ -95,7 +97,7 @@ def _get(url: str, retries: int = 14, retry_wait: float = 150.0,
     """GET that keeps trying through a throttle or a dropped connection.
 
     Two failure modes are retried, because over an hours-long pull both happen.
-    GDELT answers an uncached timeline query at best once a minute and returns
+    GDELT answers an uncached timeline query only every few minutes and returns
     HTTP 429 with a plain-text scolding otherwise; and a laptop that sleeps or
     changes network drops DNS, which arrives as a ConnectionError and used to
     kill the whole run several chunks in. Neither is a reason to stop, and

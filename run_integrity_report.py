@@ -90,7 +90,9 @@ def build(root):
                          ("option_mid_total", "hedge_price_total", "option_spread_total", "hedge_cost_total"))
         if not np.isclose(components, series.sum(), atol=1e-10):
             raise ValueError("Trade components do not sum to daily portfolio P&L")
-        if row.attempted_signals != row.n_trades + row.missing_entry + row.rejected_path:
+        after_end = getattr(row, "after_last_full_hold", 0)
+        if row.attempted_signals != (row.n_trades + after_end + row.missing_entry
+                                     + row.rejected_path):
             raise ValueError("Every attempted option signal must be accounted for")
     pnl["historical_sharpe"] = [historical.loc[(r.model, r.variant), "sharpe"]
                                  if (r.model, r.variant) in historical.index else np.nan for r in pnl.itertuples()]

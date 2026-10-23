@@ -39,7 +39,7 @@ Table B and the two are reported side by side.
 
 Sample. The alternative-data panel is limited at the right-hand end by
 OptionMetrics coverage in WRDS, so this study stops there while the baseline
-chapter of the README keeps its longer sample. Every model is evaluated on the
+chapter of docs/full_results.md keeps its longer sample. Every model is evaluated on the
 identical set of dates, which the MCS requires anyway.
 
 Usage:
@@ -105,7 +105,7 @@ def walk_forward(frame: pd.DataFrame, test_start: int, refit: int, fit_predict,
     period. The baseline scripts in this repo (`run_vol_benchmark.py`,
     `run_intraday_benchmark.py`) do not purge; the effect is small and identical
     across their models, but it is a real difference in protocol and is stated
-    in the README rather than left for a reader to find.
+    in docs/full_results.md rather than left for a reader to find.
     """
     preds = pd.Series(np.nan, index=frame.index)
     for block_start in range(test_start, len(frame), refit):
@@ -246,7 +246,8 @@ def make_hgb_fp(cols, val_tail: int = 126, horizon: int = 1):
 
 
 def build_frame(intraday_path: Path, horizon: int, data_dir: Path,
-                extra_lag: int, features: Optional[list] = None
+                extra_lag: int, features: Optional[list] = None,
+                option_vendor_csv: Optional[Path] = None
                 ) -> tuple[pd.DataFrame, list[str], str]:
     intra = pd.read_csv(intraday_path, parse_dates=["date"]).set_index("date").sort_index()
     for col in ("rs_pos_var", "rs_neg_var"):
@@ -257,7 +258,8 @@ def build_frame(intraday_path: Path, horizon: int, data_dir: Path,
     rv = intra["rv5m"]
     wanted = list(features) if features else list(ALL_FEATURES)
     panel, report = build_feature_panel(rv.index, data_dir=data_dir,
-                                        extra_lag=extra_lag, features=wanted)
+                                        extra_lag=extra_lag, features=wanted,
+                                        option_vendor_csv=option_vendor_csv)
     base = pd.DataFrame({
         "rv": rv,
         "rv_w": rv.rolling(5).mean(),
@@ -309,7 +311,8 @@ def attach_mcs(table: pd.DataFrame, losses: pd.DataFrame, alpha: float,
 
 def run_horizon(args, horizon: int) -> dict[str, pd.DataFrame]:
     frame, features, coverage = build_frame(args.intraday, horizon, args.data_dir,
-                                            args.extra_lag, args.features)
+                                            args.extra_lag, args.features,
+                                            args.option_vendor_csv)
     test_start = int(len(frame) * (1.0 - args.test_frac))
     test = frame.iloc[test_start:]
     purge = horizon
@@ -460,6 +463,9 @@ def main() -> int:
                              "(default: every feature in alt_data.ALL_FEATURES)")
     parser.add_argument("--extra-lag", type=int, default=0,
                         help="extra trading days of publication lag on every feature")
+    parser.add_argument("--option-vendor-csv", type=Path, default=None,
+                        help="local CSV with the licensed implied-vol and VIX series "
+                             "(default: data/option_market_vendor.csv)")
     parser.add_argument("--out-dir", type=Path, default=Path("results"))
     parser.add_argument("--tag", default="")
     args = parser.parse_args()

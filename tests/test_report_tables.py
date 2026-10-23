@@ -1,4 +1,4 @@
-"""Tests for the README table generator.
+"""Tests for the results-table generator behind docs/full_results.md.
 
 Its whole purpose is to stop numbers being transcribed by hand, so the two
 things worth pinning are that it does not silently mangle a value and that a

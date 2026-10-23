@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from alt_data import load_option_market
 from option_strategies import StraddleConfig, performance
 from run_option_pnl import run_straddles
 from run_vol_benchmark import qlike_series
@@ -79,11 +80,11 @@ def headline_reproduction(results: Path) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def rebuild_straddles(results: Path, data: Path, chain_dir: Path) -> None:
+def rebuild_straddles(results: Path, data: Path, chain_dir: Path,
+                      option_vendor_csv: Path | None = None) -> None:
     forecasts = pd.read_csv(results / "altdata_forecasts_h21.csv",
                             parse_dates=["date"]).set_index("date")
-    option_market = pd.read_csv(data / "features_option_market.csv",
-                                parse_dates=["date"]).set_index("date")
+    option_market = load_option_market(data, option_vendor_csv)
     underlying = pd.read_csv(data / "SPY_daily.csv",
                              parse_dates=["date"]).set_index("date")
     chain = pd.read_parquet(chain_dir / "option_chain_spy.parquet")
@@ -126,12 +127,14 @@ def main() -> int:
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
     parser.add_argument("--chain-dir", type=Path, default=Path("data"))
     parser.add_argument("--rebuild-straddles", action="store_true")
+    parser.add_argument("--option-vendor-csv", type=Path, default=None)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     if args.check and args.rebuild_straddles:
         parser.error("--check is read-only and cannot rebuild straddles")
     if args.rebuild_straddles:
-        rebuild_straddles(args.results_dir, args.data_dir, args.chain_dir)
+        rebuild_straddles(args.results_dir, args.data_dir, args.chain_dir,
+                          args.option_vendor_csv)
     features, feature_summary = marginal_audit(args.results_dir)
     straddles, comparison = summarize_straddles(args.results_dir)
     tables = {"audit_headline_reproduction": headline_reproduction(args.results_dir),

@@ -266,6 +266,68 @@ def straddle_trade_components(chain: pd.DataFrame, underlying: pd.Series, entry_
     return components
 
 
+def choose_straddle_contracts(candidates: pd.DataFrame, sessions: pd.DatetimeIndex,
+                              hold_days: int = 21, target_days: int = 30,
+                              min_days: int = 15, max_days: int = 60,
+                              max_moneyness: Optional[float] = None) -> pd.DataFrame:
+    """Pick one straddle contract per entry date that outlives the holding period.
+
+    `candidates` has one row per (date, exdate, strike) that could be traded on
+    `date`, with the underlying `spot` used to judge at-the-moneyness. For each
+    date the exit session is the `hold_days`-th session after it on `sessions`.
+    Only expiries on or after that exit session are eligible, so a 21-session
+    hold can never run past expiry. Among those, the expiry whose calendar days
+    to expiration is closest to `target_days` wins (ties go to the earlier
+    expiry), then the strike closest to spot (ties go to the lower strike).
+
+    Picking the nearest-to-30-day expiry without this condition chose an
+    expiry 27 to 32 calendar days out, which often expires before the 21st
+    session, and those trades were then rejected as incomplete paths.
+
+    `max_moneyness`, when set, drops strikes further than that fraction from
+    spot. Dates with no exit session inside `sessions`, or no eligible contract,
+    get no row.
+    """
+    if hold_days < 1:
+        raise ValueError("hold_days must be positive")
+    sessions = pd.DatetimeIndex(sessions).sort_values().unique()
+    frame = candidates[["date", "exdate", "strike", "spot"]].copy()
+    frame["date"] = pd.to_datetime(frame["date"])
+    frame["exdate"] = pd.to_datetime(frame["exdate"])
+    position = pd.Series(np.arange(len(sessions)), index=sessions)
+    frame = frame[frame["date"].isin(sessions)].copy()
+    frame["exit_pos"] = frame["date"].map(position) + hold_days
+    frame = frame[frame["exit_pos"] < len(sessions)].copy()
+    frame["exit"] = sessions[frame["exit_pos"].to_numpy(dtype=int)]
+    frame["dte"] = (frame["exdate"] - frame["date"]).dt.days
+    frame["moneyness"] = (frame["strike"] / frame["spot"] - 1.0).abs()
+    keep = ((frame["exdate"] >= frame["exit"]) & frame["dte"].between(min_days, max_days)
+            & np.isfinite(frame["moneyness"]))
+    if max_moneyness is not None:
+        keep &= frame["moneyness"] <= max_moneyness
+    frame = frame[keep].copy()
+    frame["target_gap"] = (frame["dte"] - target_days).abs()
+    frame["strike_gap"] = (frame["strike"] - frame["spot"]).abs()
+    frame = frame.sort_values(["date", "target_gap", "exdate", "strike_gap", "strike"],
+                              kind="stable")
+    picked = frame.drop_duplicates("date", keep="first")
+    return picked[["date", "exdate", "strike", "spot"]].reset_index(drop=True)
+
+
+def straddle_candidates_from_chain(chain: pd.DataFrame, spot: pd.Series) -> pd.DataFrame:
+    """Contracts in a quote cache that can open a straddle on a given date.
+
+    A (date, exdate, strike) qualifies when both the call and the put have a
+    positive bid and an offer at or above it on that date. `spot` is indexed by
+    date and is attached so `choose_straddle_contracts` can rank strikes.
+    """
+    ok = chain[(chain["best_bid"] > 0) & (chain["best_offer"] >= chain["best_bid"])]
+    legs = ok.groupby(["date", "exdate", "strike"])["cp_flag"].nunique()
+    both = legs[legs == 2].reset_index()[["date", "exdate", "strike"]]
+    both["spot"] = both["date"].map(pd.to_numeric(spot, errors="coerce"))
+    return both.dropna(subset=["spot"])
+
+
 def straddle_trade(chain: pd.DataFrame, underlying: pd.Series, entry_date: pd.Timestamp,
                    exdate: pd.Timestamp, strike: float, direction: int,
                    config: StraddleConfig) -> Optional[pd.Series]:
@@ -286,18 +348,30 @@ def straddle_backtest(chain: pd.DataFrame, entries: pd.DataFrame, underlying: pd
     premium budget each day. That keeps the book fully invested without letting
     the overlap silently lever the strategy up.
 
+    Every attempted signal lands in exactly one admission count: a trade, a
+    signal too close to the end of the underlying calendar to complete
+    `hold_days` sessions (`after_last_full_hold`), a date with no chosen
+    contract (`missing_entry`), or a contract whose quote path is incomplete
+    (`rejected_path`).
+
     Returns (daily portfolio return series, per-trade summary).
     """
     config = config or StraddleConfig()
     picks = entries.set_index("date")
     daily: list[pd.Series] = []
     trades = []
-    admission = {"attempted_signals": 0, "missing_entry": 0, "rejected_path": 0}
+    admission = {"attempted_signals": 0, "after_last_full_hold": 0,
+                 "missing_entry": 0, "rejected_path": 0}
+    last_full_entry = (underlying.index[-config.hold_days - 1]
+                       if len(underlying) > config.hold_days else None)
     for date, side in signal.dropna().items():
         side = int(np.sign(side))
         if side == 0 or (long_only and side < 0):
             continue
         admission["attempted_signals"] += 1
+        if last_full_entry is None or date > last_full_entry:
+            admission["after_last_full_hold"] += 1
+            continue
         if date not in picks.index:
             admission["missing_entry"] += 1
             continue

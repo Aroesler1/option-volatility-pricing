@@ -22,31 +22,38 @@ which gives 77 within-session returns on a full day.
 
 ## Option market
 
-| series | source | notes |
-|---|---|---|
-| `atm_iv_30`, `atm_iv_91` | `optionm.stdopdYYYY`, days = 30 and 91 | standardised at-the-money implied volatility, call and put averaged |
-| `atm_ivar_30` | derived | the square of `atm_iv_30`, the implied VARIANCE regressor of Busch, Christensen and Nielsen (2011) |
-| `term_slope_30_91` | derived | 30-day minus 91-day ATM implied volatility |
-| `skew_25d_30` | `optionm.vsurfdYYYY`, days = 30, delta -25 and +25 | 25-delta put IV minus 25-delta call IV |
-| `spy_put_call` | `optionm.opprcdYYYY` | total SPY put contract volume over total call contract volume |
-| `vix`, `vxo` | `cboe.cboe` | VIX runs to 2026-08; VXO was discontinued and is present on 41% of dates, so it is fetched, reported and then excluded from the model panel |
+| series | source | committed? | notes |
+|---|---|---|---|
+| `atm_iv_30`, `atm_iv_91` | `optionm.stdopdYYYY`, days = 30 and 91 | no | standardised at-the-money implied volatility, call and put averaged |
+| `atm_ivar_30` | derived | no | the square of `atm_iv_30`, the implied VARIANCE regressor of Busch, Christensen and Nielsen (2011) |
+| `term_slope_30_91` | derived | yes | 30-day minus 91-day ATM implied volatility |
+| `skew_25d_30` | `optionm.vsurfdYYYY`, days = 30, delta -25 and +25 | yes | 25-delta put IV minus 25-delta call IV |
+| `spy_put_call` | `optionm.opprcdYYYY` | yes | total SPY put contract volume over total call contract volume |
+| `vix`, `vxo` | `cboe.cboe` | no | VIX runs to 2026-08; VXO was discontinued and is present on 41% of dates, so it is fetched, reported and then excluded from the model panel |
 
-Written by `fetch_wrds_features.py` to `data/features_option_market.csv`
-(2,460 rows, 2017-01 to 2026-08). OptionMetrics coverage in WRDS ends
-**2025-08-29**, which is what sets the right-hand end of the alternative-data
-study.
+`fetch_wrds_features.py` writes two files. `data/features_option_market.csv`
+(committed, 2,177 rows, 2017-01-03 to 2025-08-29) holds the three derived
+spreads and ratios. `data/option_market_vendor.csv` (gitignored) holds the
+series that are vendor values or a one-to-one transform of one: the ATM
+implied volatilities, implied variance, VIX and VXO. `alt_data.load_option_market`
+joins them; `run_altdata_benchmark.py`, `run_option_pnl.py` and
+`run_inference_audit.py` take `--option-vendor-csv` to point at a local copy
+kept elsewhere. OptionMetrics coverage in WRDS ends **2025-08-29**, which is
+what sets the right-hand end of the alternative-data study.
 
-**What is committed and what a reader without the licence does.**
-`data/features_option_market.csv` holds daily summaries DERIVED from
-OptionMetrics under the Berkeley MFE programme licence: one number per day per
-series, no option-level rows, no quotes, no contracts. It is published on that
-basis. A reader without the licence rebuilds the file by running
-`fetch_wrds_features.py` against their own WRDS entitlement, which reproduces
-every column from the same tables; the script is the definition of what those
-columns are. Nothing else in this repository derives from OptionMetrics: the
-underlying price and return series is public (yfinance), and the option-level
-quotes the straddle backtest needs are pulled to a gitignored parquet and never
-committed.
+**What is committed and what a reader without the licence does.** Until
+2026-10 the committed file also carried the ATM implied volatilities, implied
+variance, VIX and VXO; those are now kept local (see
+[docs/audit_history.md](docs/audit_history.md)). The remaining columns are
+daily spreads and ratios derived from OptionMetrics under the Berkeley MFE
+programme licence: one number per day per series, no option-level rows, no
+quotes, no contracts. A reader without the licence rebuilds both files by
+running `fetch_wrds_features.py` against their own WRDS entitlement; the script
+is the definition of what the columns are. The underlying price and return
+series is public (yfinance), and the option-level quotes the straddle backtest
+needs are pulled to a gitignored parquet and never committed.
+`fetch_wrds_features.py --surface-out data/SPY_ivsurface.parquet` also saves
+the volatility-surface extract `run_iv_benchmark.py` reads (gitignored).
 
 The underlying series was OptionMetrics `secprd` until 2026-09 and is now
 yfinance. On the 1,926 overlapping days the two agree to $0.07 on the close at
@@ -56,9 +63,14 @@ worst and 4e-05 on average, and the change moved no straddle Sharpe by more than
 `fetch_option_chain.py` pulls the individual straddle legs for the option P&L
 backtest into `data/option_chain_spy.parquet`. Those are option-level licensed
 rows and are **gitignored**; only the daily P&L series in `results/` is
-published. OptionMetrics' own `forward_price` column is NULL for SPY across this
-sample, so at-the-money strikes are chosen against the `secprd` closing spot
-inside the query; that spot is used to pick a strike and is not written out.
+published. For each entry date the pull keeps the expiry nearest 30 calendar
+days among those on or after the exit session 21 sessions later, so a hold
+never runs past expiry. OptionMetrics' own `forward_price` column is NULL for
+SPY across this sample, so at-the-money strikes are chosen against the `secprd`
+closing spot inside the query. The local cache used for the committed results
+was pulled before that expiry rule existed, so `run_option_pnl.py` re-selects
+from the contracts it holds, accepting strikes within 1% of spot
+(`--atm-tolerance`).
 
 Both WRDS scripts refuse to open a connection unless `WRDS_DUO_READY=1` is set
 for that run, attempt exactly one connection per invocation, and never retry a
@@ -89,10 +101,12 @@ volatility rises. Both signs are the expected ones.
 `data/features_gdelt.csv` holds 2,782 daily rows, 2018-01-01 to 2025-09-01,
 with no gaps in either theme.
 
-The API answers roughly one uncached timeline query every 10 to 15 minutes and
-returns HTTP 429 otherwise, so `fetch_alt_data.py` pauses between requests and
-caches every chunk under `data/.gdelt_cache/` (gitignored). A cold pull is 32
-chunks and takes several hours; a rerun is free. Ranges much longer than a year
+The API answers few uncached timeline queries and returns HTTP 429 to the rest:
+in the pull that built this file, successful requests came 1.5 to about 60
+minutes apart (median about 12). `fetch_alt_data.py` pauses between requests
+and caches every chunk under `data/.gdelt_cache/` (gitignored). This range is
+32 chunks (two themes, two modes, eight yearly chunks; run with
+`--end 2025-09-01`) and a cold pull takes several hours; a rerun is free. Ranges much longer than a year
 are refused however long you wait, which is why the pull is chunked by year.
 
 ## Attention
@@ -155,7 +169,11 @@ are named above.
   is named `spy_put_call` so the substitution is visible wherever it appears.
 - **`data/sentiment_prev_full_month.json`.** A one-month Reddit crawl from 2025.
   It is not reproducible and is retained as an artifact of the original
-  coursework only. No result depends on it.
+  coursework only. No result depends on it. Only the per-post and daily
+  sentiment scores are kept; post titles, bodies, Reddit IDs and timestamps
+  were removed in 2026-10. `data/TSM_data.csv` and
+  `data/weekly_stock_data.csv` are the course project's news-sentiment and
+  price inputs for `Main.ipynb`, kept on the same basis.
 
 ## Publication lags
 
@@ -174,12 +192,12 @@ and the target always starts at t+1.
 
 `run_altdata_benchmark.py --extra-lag 1` shifts every block one further session.
 If a result only survives at `--extra-lag 0` it is an artifact of the
-convention, and the README reports both.
+convention, and [docs/full_results.md](docs/full_results.md) reports both.
 
 ## Reproducing
 
 ```bash
-python build_intraday_rv.py                     # needs the Databento extract
+python build_intraday_rv.py --raw <extract>     # needs the Databento extract
 python fetch_spy_daily.py                       # public, no credential
 python fetch_alt_data.py                        # free sources, slow (GDELT)
 
@@ -187,12 +205,12 @@ python fetch_alt_data.py                        # free sources, slow (GDELT)
 WRDS_DUO_READY=1 WRDS_USERNAME=yourlogin python fetch_wrds_features.py
 WRDS_DUO_READY=1 WRDS_USERNAME=yourlogin python fetch_option_chain.py
 
-python run_altdata_benchmark.py
-python run_option_pnl.py
+python run_altdata_benchmark.py --tag _purged   # current results; no tag rewrites the historical files
+python run_option_pnl.py --tag _purged
 ```
 
-Credentials come from `~/.pgpass` for WRDS and from the `DATABENTO_RAW_DIR`
-environment variable for the intraday extract. No credential is stored in this
+Credentials come from `~/.pgpass` for WRDS, and the path to the intraday extract
+is passed to `build_intraday_rv.py` with `--raw`. No credential is stored in this
 repository, and no test reads one.
 
 
@@ -221,3 +239,10 @@ P&L only. `results/integrity_*.csv` reconciles forecast loss, family inference,
 trade admission counts and every premium-budget P&L row. Quote paths, strikes,
 contract identifiers and raw deltas remain in the existing ignored cache.
 Run `python run_integrity_report.py --check` without credentials or network.
+
+## Straddle contract correction, 2026-10-23
+
+No new source or pull. The straddle files and `results/integrity_pnl_comparison.csv`
+were regenerated from the same local option-chain cache with expiries that
+outlive the hold; old and new numbers are in
+[docs/audit_history.md](docs/audit_history.md).

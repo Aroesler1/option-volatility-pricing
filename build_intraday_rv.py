@@ -18,7 +18,7 @@ one enormous 17-hour return):
 RS+ + RS- = RV by construction, which the tests check.
 
 The raw `.dbn.zst` extract is licensed and gitignored; only the daily aggregate
-is committed. Point DATABENTO_RAW_DIR or --raw at the extract to re-run.
+is committed. Pass the extract's path with --raw to re-run.
 
 Usage:
     python build_intraday_rv.py --raw data/databento/SPY_1m_2018_2026.dbn.zst
@@ -53,7 +53,7 @@ def five_minute_returns(bars: pd.DataFrame) -> pd.Series:
     # The grid is therefore 09:35, 09:40, ..., 16:00: 78 closes and 77
     # within-session returns on a full day. This reproduces the committed
     # series `data/SPY_intraday_rv.csv` to floating-point precision, which is
-    # the point - the baseline results in the README were computed on it.
+    # the point - the baseline results in docs/full_results.md were computed on it.
     closes = px.resample("5min", label="right", closed="left").last().dropna()
     closes = closes.between_time(FIRST_BUCKET, SESSION_CLOSE)
     ret = np.log(closes / closes.shift(1))

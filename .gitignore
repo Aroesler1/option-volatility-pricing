@@ -16,13 +16,17 @@ cmc_output/
 .venv/
 __pycache__/
 *.py[cod]
+.pytest_cache/
 
 data/databento/
 
 data/SPY_ivsurface.parquet
 
-# Cross-agent working notes. Kept locally, not published: it is scratch context
-# for whoever picks the work up next, not part of the repo.
+# Licensed OptionMetrics/CBOE daily series (implied vol, VIX), written by
+# fetch_wrds_features.py; only the derived spreads and ratios are committed.
+data/option_market_vendor.csv
+
+# Local working notes, not published
 handoff.md
 
 # Licensed OptionMetrics option-level rows, pulled by fetch_option_chain.py.

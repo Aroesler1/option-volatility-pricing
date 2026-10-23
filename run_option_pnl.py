@@ -14,12 +14,15 @@ b. Delta-hedged SPY straddles. At each forecast date the 21-day forecast, with
    implied variance; long a straddle when the forecast is higher by a frozen
    margin, short when lower, flat otherwise. A long-only variant is run
    alongside because a short straddle book carries unbounded crash risk and
-   its Sharpe is not comparable to a long one's without saying so.
+   its Sharpe is not comparable to a long one's without saying so. The
+   always-long control appears once, since the long-only filter leaves it
+   unchanged. Each entry uses an expiry that outlives the hold
+   (`select_straddle_entries`).
 
-c. A model-free synthetic variance swap: realized variance over the next 21
-   days minus VIX squared (Carr and Wu, RFS 2009). No forecast is involved, so
-   it measures the variance risk premium every straddle strategy is trading
-   around, and it is the number the forecast-driven strategies have to beat.
+c. A model-free variance proxy: SPY realized variance over the next 21 trading
+   days minus VIX squared (after Carr and Wu, RFS 2009). No forecast is
+   involved. VIX is SPX-based over 30 calendar days and the target excludes
+   overnight moves, so this is descriptive, not a tradeable swap return.
 
 Requires `run_altdata_benchmark.py` to have been run first (it reads the saved
 per-model forecasts), `fetch_option_chain.py` for the option quotes, and
@@ -39,11 +42,14 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
+from alt_data import load_option_market
 from option_strategies import (
     StraddleConfig,
+    choose_straddle_contracts,
     paired_block_bootstrap_pvalue,
     performance,
     straddle_backtest,
+    straddle_candidates_from_chain,
     straddle_signal,
     variance_swap_pnl,
     variance_swap_summary,
@@ -79,9 +85,24 @@ def load_forecasts(path: Path) -> pd.DataFrame:
     return frame
 
 
-def load_option_market(data_dir: Path) -> pd.DataFrame:
-    return (pd.read_csv(data_dir / "features_option_market.csv", parse_dates=["date"])
-            .set_index("date").sort_index())
+def select_straddle_entries(chain: pd.DataFrame, entries: pd.DataFrame,
+                            sessions: pd.DatetimeIndex, hold_days: int,
+                            target_days: int, max_moneyness: float) -> pd.DataFrame:
+    """Re-pick each date's straddle from the cached quotes so it outlives the hold.
+
+    The entries file written by older pulls chose the expiry nearest 30
+    calendar days, which often expires before the 21st session. This chooses
+    again from the contracts present in `chain`, with the rule in
+    `choose_straddle_contracts`, using the OptionMetrics spot stored in
+    `entries` to rank strikes. A cache only holds contracts some earlier pull
+    selected, so strikes further than `max_moneyness` from spot are refused
+    rather than traded as if they were at the money.
+    """
+    spot = entries.set_index("date")["spot"]
+    candidates = straddle_candidates_from_chain(chain, spot)
+    return choose_straddle_contracts(candidates, sessions, hold_days=hold_days,
+                                     target_days=target_days,
+                                     max_moneyness=max_moneyness)
 
 
 def run_vol_managed(forecasts: pd.DataFrame, spy_ret: pd.Series, target_vol: float,
@@ -156,6 +177,8 @@ def run_straddles(forecasts: pd.DataFrame, implied: pd.Series, chain: pd.DataFra
         for label, long_only in (("both", False), ("long_only", True)):
             if model == "always_short" and long_only:
                 continue                    # a long-only filter empties it
+            if model == "always_long" and long_only:
+                continue                    # identical to its two-sided book
             book, trades = straddle_backtest(chain, entries, underlying, side,
                                              config, long_only=long_only)
             books[(model, label)], trade_tables[(model, label)] = book, trades
@@ -194,7 +217,8 @@ def run_straddles(forecasts: pd.DataFrame, implied: pd.Series, chain: pd.DataFra
              "turnover_ann", "n_trades", "trades_per_year", "long_share", "n_days",
              "evaluation_start", "evaluation_end", "option_mid_total", "hedge_price_total",
              "option_spread_total", "hedge_cost_total", "attempted_signals",
-             "missing_entry", "rejected_path", "evaluation_status"]
+             "after_last_full_hold", "missing_entry", "rejected_path",
+             "evaluation_status"]
     table = table[[c for c in front if c in table.columns]]
     return table.sort_values(["variant", "sharpe"], ascending=[True, False]), series, rules
 
@@ -212,11 +236,22 @@ def main() -> int:
     parser.add_argument("--margin-quantile", type=float, default=0.5)
     parser.add_argument("--n-boot", type=int, default=5000)
     parser.add_argument("--tag", default="")
+    parser.add_argument("--chain-dir", type=Path, default=None,
+                        help="folder holding the licensed option_chain_spy*.parquet "
+                             "cache (default: --data-dir)")
+    parser.add_argument("--option-vendor-csv", type=Path, default=None,
+                        help="local CSV with the licensed implied-vol and VIX series "
+                             "(default: data/option_market_vendor.csv)")
+    parser.add_argument("--target-days", type=int, default=30,
+                        help="straddle maturity, in calendar days, to aim for")
+    parser.add_argument("--atm-tolerance", type=float, default=0.01,
+                        help="largest |strike/spot - 1| accepted from the quote cache")
     args = parser.parse_args()
+    chain_dir = args.chain_dir or args.data_dir
 
     under = (pd.read_csv(args.data_dir / "SPY_daily.csv",
                          parse_dates=["date"]).set_index("date").sort_index())
-    option_market = load_option_market(args.data_dir)
+    option_market = load_option_market(args.data_dir, args.option_vendor_csv)
 
     # ---- a. volatility-managed SPY, at every horizon -----------------------
     vm_tables, vm_series = [], {}
@@ -281,12 +316,14 @@ def main() -> int:
             args.results_dir / f"option_pnl_volmanaged{args.tag}.csv", index=False)
 
     # ---- b. delta-hedged straddles ----------------------------------------
-    chain_path = args.data_dir / "option_chain_spy.parquet"
-    entries_path = args.data_dir / "option_chain_spy_entries.parquet"
+    chain_path = chain_dir / "option_chain_spy.parquet"
+    entries_path = chain_dir / "option_chain_spy_entries.parquet"
     straddle_path = args.results_dir / f"altdata_forecasts_h{args.straddle_horizon}{args.tag}.csv"
     if chain_path.exists() and entries_path.exists() and straddle_path.exists():
         chain = pd.read_parquet(chain_path)
-        entries = pd.read_parquet(entries_path)
+        entries = select_straddle_entries(
+            chain, pd.read_parquet(entries_path), under.index, args.hold_days,
+            args.target_days, args.atm_tolerance)
         forecasts = load_forecasts(straddle_path)
         implied = option_market["atm_iv_30"].reindex(forecasts.index)
         config = StraddleConfig(hold_days=args.hold_days,

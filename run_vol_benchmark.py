@@ -12,8 +12,8 @@ forecasts), with Diebold-Mariano tests:
    on a validation tail of the training window (train-only scaling; no
    leakage)
 
-This is the benchmark any ML volatility model in this repo must beat, per
-the methodology note in the README.
+This is the benchmark any ML volatility model in this repo must beat; see the
+baseline chapter of docs/full_results.md.
 
 Usage:
     python run_vol_benchmark.py --ticker SPY --start 2005-01-01

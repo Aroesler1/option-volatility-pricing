@@ -25,9 +25,13 @@ index file:
                     publishing it, so it is missing over the later sample and is
                     reported rather than silently filled.
 
-Licence: OptionMetrics and the CBOE index file are licensed through WRDS. Only
-the derived daily series is written, never option-level rows, and the output
-CSV is the only thing committed.
+Licence: OptionMetrics and the CBOE index file are licensed through WRDS. Two
+files are written, never option-level rows. `--out` (committed) holds only the
+derived spreads and ratios: skew, term slope and put/call volume. `--vendor-out`
+(gitignored) holds the series that are vendor values or a one-to-one transform
+of one: ATM implied volatility at 30 and 91 days, implied variance, VIX and VXO.
+`--surface-out` optionally saves the 30- to 365-day volatility surface that
+`run_iv_benchmark.py` reads, also gitignored.
 
 Credentials come from `~/.pgpass`; set WRDS_USERNAME to your WRDS login. Nothing
 in this file contains a secret.
@@ -48,6 +52,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import psycopg2
+
+from alt_data import OPTION_VENDOR_COLUMNS
 
 WRDS_HOST = "wrds-pgdata.wharton.upenn.edu"
 WRDS_PORT = 9737
@@ -186,6 +192,28 @@ def fetch_put_call(con, years: range) -> pd.DataFrame:
     return out
 
 
+def fetch_iv_surface(con, years: range) -> pd.DataFrame:
+    """OptionMetrics volatility surface rows for SPY, as run_iv_benchmark.py reads them."""
+    frames = []
+    for year in years:
+        sql = (f"select date, days, delta, impl_volatility, cp_flag "
+               f"from optionm.vsurfd{year} "
+               f"where secid = %s and days in (30, 60, 91, 182, 365)")
+        frames.append(_read(con, sql, (SPY_SECID,)))
+    raw = pd.concat(frames, ignore_index=True)
+    for col in ("days", "delta", "impl_volatility"):
+        raw[col] = pd.to_numeric(raw[col], errors="coerce")
+    raw["date"] = pd.to_datetime(raw["date"])
+    return raw
+
+
+def split_option_market(panel: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """(derived columns that may be committed, vendor columns that stay local)."""
+    vendor = [c for c in OPTION_VENDOR_COLUMNS if c in panel.columns]
+    derived = [c for c in panel.columns if c not in vendor]
+    return panel[derived], panel[vendor]
+
+
 def fetch_cboe(con, start: str) -> pd.DataFrame:
     raw = _read(con, "select date, vix, vxo from cboe.cboe where date >= %s", (start,))
     out = raw.set_index(pd.to_datetime(raw["date"])).drop(columns=["date"])
@@ -200,6 +228,10 @@ def main() -> int:
     parser.add_argument("--start-year", type=int, default=2017)
     parser.add_argument("--end-year", type=int, default=2025)
     parser.add_argument("--out", type=Path, default=Path("data/features_option_market.csv"))
+    parser.add_argument("--vendor-out", type=Path,
+                        default=Path("data/option_market_vendor.csv"))
+    parser.add_argument("--surface-out", type=Path, default=None,
+                        help="also save the SPY volatility surface here (parquet)")
     parser.add_argument("--username", default=None)
     args = parser.parse_args()
 
@@ -210,6 +242,7 @@ def main() -> int:
         skew = fetch_skew(con, years)
         put_call = fetch_put_call(con, years)
         cboe = fetch_cboe(con, f"{args.start_year}-01-01")
+        surface = fetch_iv_surface(con, years) if args.surface_out else None
     finally:
         con.close()
 
@@ -217,12 +250,19 @@ def main() -> int:
              .join(cboe, how="outer").sort_index())
     panel.index.name = "date"
     panel = panel.loc[panel[["atm_iv_30", "vix"]].notna().any(axis=1)]
+    derived, vendor = split_option_market(panel)
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    panel.to_csv(args.out, float_format="%.10g")
+    args.vendor_out.parent.mkdir(parents=True, exist_ok=True)
+    derived.to_csv(args.out, float_format="%.10g")
+    vendor.to_csv(args.vendor_out, float_format="%.10g")
+    if surface is not None:
+        args.surface_out.parent.mkdir(parents=True, exist_ok=True)
+        surface.to_parquet(args.surface_out, index=False)
+        print(f"surface: {len(surface):,} rows -> {args.surface_out} (licensed, gitignored)")
 
     print(f"{len(panel):,} rows, {panel.index.min().date()} -> {panel.index.max().date()}")
     print(panel.notna().mean().round(4).to_string())
-    print(f"saved -> {args.out}")
+    print(f"saved -> {args.out} (derived) and {args.vendor_out} (licensed, gitignored)")
     return 0
 
 

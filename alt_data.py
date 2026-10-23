@@ -35,6 +35,13 @@ import pandas as pd
 
 DATA_DIR = Path("data")
 
+# Option-market series that are OptionMetrics or CBOE values (or a one-to-one
+# transform of one). They are licensed, so they live in a local, gitignored
+# file written by fetch_wrds_features.py; the committed
+# features_option_market.csv keeps only the derived spreads and ratios.
+OPTION_VENDOR_COLUMNS = ["atm_iv_30", "atm_iv_91", "atm_ivar_30", "vix", "vxo"]
+OPTION_VENDOR_FILE = "option_market_vendor.csv"
+
 # Feature blocks, their source file, and the publication lag in trading days.
 # `None` for lag means the block has its own alignment rule (EMV, calendar).
 OPTION_FEATURES = ["atm_ivar_30", "atm_iv_30", "skew_25d_30", "term_slope_30_91",
@@ -124,9 +131,37 @@ def abnormal_attention(views: pd.Series, window: int = 60) -> pd.Series:
 # ---------------------------------------------------------------------------
 
 
-def load_option_block(data_dir: Path = DATA_DIR) -> pd.DataFrame:
-    raw = pd.read_csv(data_dir / "features_option_market.csv",
-                      parse_dates=["date"]).set_index("date").sort_index()
+def load_option_market(data_dir: Path = DATA_DIR,
+                       vendor_csv: Optional[Path] = None) -> pd.DataFrame:
+    """Daily option-market panel: committed derived series plus local vendor series.
+
+    `features_option_market.csv` in `data_dir` holds the derived columns. Any
+    vendor column it lacks is read from `vendor_csv` (default
+    `data_dir/option_market_vendor.csv`), which never leaves the machine that
+    pulled it. A file that already carries every column, such as a full local
+    pull, is used as it is.
+    """
+    data_dir = Path(data_dir)
+    base = pd.read_csv(data_dir / "features_option_market.csv",
+                       parse_dates=["date"]).set_index("date")
+    missing = [c for c in OPTION_VENDOR_COLUMNS if c not in base.columns]
+    if missing:
+        path = Path(vendor_csv) if vendor_csv is not None else data_dir / OPTION_VENDOR_FILE
+        if not path.exists():
+            raise FileNotFoundError(
+                f"{path} not found: the licensed series {missing} are not committed. "
+                f"Run fetch_wrds_features.py, or pass the local file that holds them.")
+        vendor = pd.read_csv(path, parse_dates=["date"]).set_index("date")
+        absent = [c for c in missing if c not in vendor.columns]
+        if absent:
+            raise KeyError(f"{path} lacks {absent}")
+        base = base.join(vendor[missing], how="outer")
+    return base.sort_index()
+
+
+def load_option_block(data_dir: Path = DATA_DIR,
+                      vendor_csv: Optional[Path] = None) -> pd.DataFrame:
+    raw = load_option_market(data_dir, vendor_csv)
     out = pd.DataFrame(index=raw.index)
     out["atm_iv_30"] = raw["atm_iv_30"]
     out["atm_ivar_30"] = raw["atm_ivar_30"]
@@ -222,7 +257,8 @@ class PanelReport:
 
 def build_feature_panel(sessions: pd.DatetimeIndex, data_dir: Path = DATA_DIR,
                         extra_lag: int = 0,
-                        features: Optional[Iterable[str]] = None
+                        features: Optional[Iterable[str]] = None,
+                        option_vendor_csv: Optional[Path] = None
                         ) -> tuple[pd.DataFrame, PanelReport]:
     """Assemble every alternative-data feature on the SPY trading calendar.
 
@@ -236,7 +272,7 @@ def build_feature_panel(sessions: pd.DatetimeIndex, data_dir: Path = DATA_DIR,
     if unknown:
         raise KeyError(f"features not built: {unknown}")
     # Only the blocks a caller actually asked for are read. That is not just
-    # tidiness: the GDELT pull takes about an hour to build its file, and
+    # tidiness: the GDELT pull takes several hours to build its file, and
     # running the rest of the study while it finishes should not require the
     # file to exist.
     needed = {FEATURE_BLOCK[c] for c in wanted}
@@ -246,8 +282,8 @@ def build_feature_panel(sessions: pd.DatetimeIndex, data_dir: Path = DATA_DIR,
         # No forward fill: OptionMetrics and CBOE publish one row per trading
         # session inside their coverage, so a fill could only manufacture values
         # after coverage ends, and the study's right-hand edge is exactly there.
-        parts.append(align_to_sessions(load_option_block(data_dir), sessions,
-                                       lag=0 + extra_lag, ffill_limit=0))
+        parts.append(align_to_sessions(load_option_block(data_dir, option_vendor_csv),
+                                       sessions, lag=0 + extra_lag, ffill_limit=0))
     if "news" in needed:
         parts.append(align_to_sessions(load_news_block(data_dir), sessions,
                                        lag=1 + extra_lag))
