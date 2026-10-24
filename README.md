@@ -31,8 +31,9 @@ QLIKE, the standard loss for variance forecasts (lower is better).
 - No single feature survives a multiple-testing correction. Across 93
   one-feature-at-a-time tests (48 against HAR, 45 against HAR plus
   semivariance and implied variance), no improvement survives Holm. The best,
-  1-day implied variance, goes from raw p = 0.0012 to Holm p = 0.051. Four
-  features make 1-day forecasts significantly worse even after correction.
+  1-day implied variance, goes from raw p = 0.0012 to Holm p = 0.051 within
+  its 48 tests and 0.10 across all 93. Four features make 1-day forecasts
+  significantly worse even after correction.
   Source: [`results/integrity_marginal_holm.csv`](results/integrity_marginal_holm.csv).
 - Better forecasts did not improve volatility targeting. With a 15% volatility
   target and 5 bps costs, no model beats buy-and-hold by a significant margin

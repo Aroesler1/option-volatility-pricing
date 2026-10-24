@@ -159,7 +159,7 @@ def lagcompare_table(results: Path, tag: str) -> None:
         print(markdown(sub, headers))
 
 
-def volmanaged_table(results: Path, tag: str) -> None:
+def volmanaged_table(results: Path, tag: str, with_bootstrap: bool = False) -> None:
     frame = pd.read_csv(results / f"option_pnl_volmanaged{tag}.csv")
     headers = {"model": "model", "qlike_mean": "QLIKE", "sharpe": "Sharpe",
                "mean_ann": "mean p.a.", "vol_ann": "vol p.a.",
@@ -173,6 +173,10 @@ def volmanaged_table(results: Path, tag: str) -> None:
               f"{row['sharpe_winner']}; Spearman(QLIKE, Sharpe) = "
               f"{row['qlike_sharpe_spearman']:+.3f} (p = "
               f"{row['qlike_sharpe_spearman_p']:.3f})")
+        # only the purged file's bootstrap columns line up with its own Sharpe column
+        if with_bootstrap:
+            print(f"\nSharpe winner minus buy-and-hold: {row['diff_vs_buy_and_hold']:+.3f} "
+                  f"(paired block bootstrap p = {row['p_vs_buy_and_hold']:.3f})")
 
 
 def straddle_table(results: Path, tag: str) -> None:
@@ -279,6 +283,9 @@ def main() -> int:
         "shar": lambda: shar_table(args.results_dir, args.tag),
         "lagcompare": lambda: lagcompare_table(args.results_dir, args.tag),
         "volmanaged": lambda: volmanaged_table(args.results_dir, args.tag),
+        # the purged rerun is the current result; the untagged table is kept as history
+        "volmanaged_purged": lambda: volmanaged_table(args.results_dir, "_purged",
+                                                      with_bootstrap=True),
         "straddles": lambda: straddle_table(args.results_dir, args.tag),
         "swap": lambda: swap_table(args.results_dir, args.tag),
         "audit_holm": lambda: audit_holm_table(args.results_dir),

@@ -768,9 +768,86 @@ Three tests, in increasing order of what they cost to implement.
 ### Volatility-managed SPY
 
 Weight is a 15% annualized volatility target divided by each model's forecast,
-capped at 2, rebalanced daily, 5 bps per unit of turnover, with the weight set
-at t earned on t+1. The cap never binds: HAR's forecast volatility never fell
-below 8.0%, and the cap starts biting at 7.5%.
+capped at 2, rebalanced daily, 5 bps per unit of turnover. A weight set from
+the forecast at the close of t trades at the close of t+1 and earns the t+2
+return. The cap starts biting at a 7.5% forecast, which happens on calm days:
+1-day HAR forecasts are below it on 21% of days, 5-day forecasts on 10% and
+21-day forecasts never. The tables use the purged forecasts in
+`results/altdata_forecasts_h{1,5,21}_purged.csv`.
+
+<!-- RESULTS:VOLMANAGED_PURGED -->
+
+#### Horizon 1
+
+| model | QLIKE | Sharpe | mean p.a. | vol p.a. | max drawdown | turnover p.a. |
+|---|---|---|---|---|---|---|
+| har | 0.2095 | 1.3853 | 0.2804 | 0.2024 | -0.2572 | 39.9768 |
+| shar | 0.2102 | 1.3735 | 0.2777 | 0.2022 | -0.2544 | 42.3527 |
+| persistence | 0.2783 | 1.3677 | 0.2812 | 0.2056 | -0.2719 | 61.8359 |
+| har_rv_iv | 0.1953 | 1.3649 | 0.2798 | 0.2050 | -0.2656 | 36.3468 |
+| lstm | 0.2296 | 1.3634 | 0.2786 | 0.2044 | -0.2635 | 27.0083 |
+| combination | 0.1867 | 1.3287 | 0.2682 | 0.2019 | -0.2556 | 32.7468 |
+| buy_and_hold |  | 1.3054 | 0.2171 | 0.1663 | -0.2023 |  |
+| hgb | 0.1935 | 1.3005 | 0.2599 | 0.1998 | -0.2395 | 35.5191 |
+| har_x_lasso | 0.1841 | 1.2779 | 0.2580 | 0.2019 | -0.2653 | 30.6845 |
+| lstm_x | 0.1828 | 1.2458 | 0.2542 | 0.2041 | -0.2654 | 29.4959 |
+
+QLIKE winner lstm_x, Sharpe winner har; Spearman(QLIKE, Sharpe) = +0.783 (p = 0.013)
+
+Sharpe winner minus buy-and-hold: +0.080 (paired block bootstrap p = 0.670)
+
+#### Horizon 5
+
+| model | QLIKE | Sharpe | mean p.a. | vol p.a. | max drawdown | turnover p.a. |
+|---|---|---|---|---|---|---|
+| persistence | 0.3530 | 1.3677 | 0.2812 | 0.2056 | -0.2719 | 61.8359 |
+| har | 0.2090 | 1.3412 | 0.2599 | 0.1938 | -0.2545 | 37.7038 |
+| shar | 0.2099 | 1.3382 | 0.2592 | 0.1937 | -0.2535 | 38.5632 |
+| har_rv_iv | 0.2033 | 1.3342 | 0.2610 | 0.1956 | -0.2604 | 32.4991 |
+| buy_and_hold |  | 1.3054 | 0.2171 | 0.1663 | -0.2023 |  |
+| lstm_x | 0.2356 | 1.3031 | 0.2643 | 0.2028 | -0.2606 | 17.2688 |
+| combination | 0.1926 | 1.3030 | 0.2542 | 0.1951 | -0.2514 | 27.0195 |
+| har_x_lasso | 0.1866 | 1.2918 | 0.2546 | 0.1971 | -0.2552 | 27.7558 |
+| hgb | 0.1851 | 1.2687 | 0.2479 | 0.1954 | -0.2514 | 31.9503 |
+| lstm | 0.2378 | 1.2452 | 0.2472 | 0.1985 | -0.2698 | 16.4270 |
+
+QLIKE winner hgb, Sharpe winner persistence; Spearman(QLIKE, Sharpe) = +0.417 (p = 0.265)
+
+Sharpe winner minus buy-and-hold: +0.062 (paired block bootstrap p = 0.767)
+
+#### Horizon 21
+
+| model | QLIKE | Sharpe | mean p.a. | vol p.a. | max drawdown | turnover p.a. |
+|---|---|---|---|---|---|---|
+| lstm_x | 0.3132 | 1.3835 | 0.2882 | 0.2083 | -0.2740 | 13.0146 |
+| persistence | 0.5811 | 1.3677 | 0.2812 | 0.2056 | -0.2719 | 61.8359 |
+| shar | 0.2453 | 1.3623 | 0.2438 | 0.1790 | -0.2387 | 24.4403 |
+| har_rv_iv | 0.2485 | 1.3617 | 0.2444 | 0.1795 | -0.2392 | 23.3524 |
+| har | 0.2452 | 1.3595 | 0.2434 | 0.1790 | -0.2392 | 24.6557 |
+| lstm | 0.2543 | 1.3468 | 0.2556 | 0.1898 | -0.2485 | 8.8361 |
+| combination | 0.2314 | 1.3459 | 0.2496 | 0.1854 | -0.2405 | 17.0574 |
+| buy_and_hold |  | 1.3054 | 0.2171 | 0.1663 | -0.2023 |  |
+| hgb | 0.2275 | 1.2972 | 0.2507 | 0.1933 | -0.2398 | 22.3245 |
+| har_x_lasso | 0.2546 | 1.2663 | 0.2476 | 0.1956 | -0.2625 | 27.4331 |
+
+QLIKE winner hgb, Sharpe winner lstm_x; Spearman(QLIKE, Sharpe) = +0.517 (p = 0.154)
+
+Sharpe winner minus buy-and-hold: +0.078 (paired block bootstrap p = 0.665)
+
+<!-- END:VOLMANAGED_PURGED -->
+
+No model beats buy-and-hold by a significant margin at any horizon. The best
+book at each horizon (HAR at 1 day, persistence at 5, LSTM-X at 21) leads
+buy-and-hold's Sharpe of 1.31 by 0.06 to 0.08, with paired block bootstrap p
+between 0.67 and 0.77. Forecast accuracy does not carry over to the ranking
+either: Spearman between QLIKE and Sharpe is +0.78 (p = 0.013), +0.42 and
++0.52, so at 1 day the models with lower QLIKE had lower Sharpe. Source:
+`results/option_pnl_volmanaged_purged.csv`.
+
+### Volatility-managed SPY, historical unpurged inputs (superseded above)
+
+These tables were stored on 2026-09-05 from the unpurged forecasts, with the
+weight set at t earned on t+1. They are kept as an audit record.
 
 <!-- RESULTS:VOLMANAGED -->
 
@@ -827,15 +904,12 @@ QLIKE winner hgb, Sharpe winner lstm_x; Spearman(QLIKE, Sharpe) = -0.367 (p = 0.
 
 <!-- END:VOLMANAGED -->
 
-The reported paired comparison does not establish an improvement over
-buy-and-hold. At five days, LASSO's stored Sharpe 1.287 exceeds buy-and-hold's
-1.265, so the earlier statement that buy-and-hold led at both short horizons
-was incorrect. These historical inputs are superseded by the separate purged rerun.
-
-The rank correlation says the same thing more precisely. Spearman between QLIKE
-and Sharpe across models is -0.37, -0.32 and -0.37 at 1, 5 and 21 days, all with
-p above 0.3. **A better volatility forecast tilted the P&L ranking in the right
-direction and not by enough to distinguish from noise.**
+No historical book beat buy-and-hold by a significant margin. At five days,
+LASSO's stored Sharpe 1.287 exceeds buy-and-hold's 1.265, so an earlier
+statement that buy-and-hold led at both short horizons was incorrect. The
+historical Spearman between QLIKE and Sharpe was -0.37, -0.32 and -0.37 at 1, 5
+and 21 days, all with p above 0.3. Its mild tilt toward better forecasts
+earning more did not survive the purged rerun above, where the sign flips.
 
 ### Historical intermediate straddle audit, superseded above
 
